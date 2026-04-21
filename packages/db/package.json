@@ -1,0 +1,40 @@
+{
+  "name": "@cheddr/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./schema": {
+      "import": "./dist/schema.js",
+      "types": "./dist/schema.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@cheddr/config-ts": "workspace:*",
+    "@cheddr/game-engine": "workspace:*",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

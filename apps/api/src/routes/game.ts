@@ -1,0 +1,210 @@
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { zValidator } from "@hono/zod-validator";
+import {
+  type GameStateDTO as GameStateDtoType,
+  MoveRequestSchema,
+  type MoveResponse,
+  ResignRequestSchema,
+  type ResignResponse,
+  StartGameRequestSchema,
+  type StartGameResponse,
+} from "@cheddr/api-types";
+import {
+  createGame,
+  getAiMove,
+  makeMove,
+  type GameResult,
+  type Position,
+} from "@cheddr/game-engine";
+
+import { auth } from "../middleware/auth";
+import {
+  createSession,
+  deleteSession,
+  getSession,
+  updateSession,
+  type GameSession,
+} from "../lib/session";
+import { outcomeForPlayer, persistTerminalGame } from "../lib/persist";
+import type { AppBindings, AppDeps } from "../types";
+
+function sessionToDto(session: GameSession): GameStateDtoType {
+  return {
+    sessionId: session.id,
+    board: session.board,
+    currentPlayer: session.currentPlayer,
+    moveHistory: session.moveHistory,
+    result: session.result,
+    difficulty: session.difficulty,
+    ranked: session.ranked,
+  };
+}
+
+/**
+ * Build a fully-applied AI loss when the player resigns. The Misere model
+ * doesn't have a "resign" outcome natively, so we synthesize one by
+ * marking the resigning player (X) as the loser.
+ */
+function resignAsLoss(): GameResult {
+  return { status: "loss", loser: "X" };
+}
+
+export function createGameRoutes(deps: AppDeps) {
+  const { db, redis, clerkSecretKey, jwtSecret } = deps;
+  const requireAuth = auth({ db, clerkSecretKey, jwtSecret });
+
+  return new Hono<AppBindings>()
+    .use("*", requireAuth)
+
+    .post("/start", zValidator("json", StartGameRequestSchema), async (c) => {
+      const { difficulty, ranked } = c.req.valid("json");
+      const identity = c.get("identity");
+
+      const initial = createGame(difficulty);
+      const session: GameSession = {
+        id: crypto.randomUUID(),
+        userId: identity.id,
+        ranked,
+        startedAt: Date.now(),
+        board: initial.board,
+        currentPlayer: initial.currentPlayer,
+        moveHistory: [...initial.moveHistory],
+        result: initial.result,
+        difficulty,
+      };
+
+      await createSession(redis, session);
+
+      const body: StartGameResponse = sessionToDto(session);
+      return c.json(body);
+    })
+
+    .post("/move", zValidator("json", MoveRequestSchema), async (c) => {
+      const { sessionId, position } = c.req.valid("json");
+      const identity = c.get("identity");
+
+      const session = await getSession(redis, sessionId);
+      if (!session) {
+        throw new HTTPException(404, { message: "Session not found or expired" });
+      }
+      if (session.userId !== identity.id) {
+        throw new HTTPException(403, { message: "Session belongs to another user" });
+      }
+      if (session.result.status !== "in_progress") {
+        throw new HTTPException(409, { message: "Game is already over" });
+      }
+      if (session.currentPlayer !== "X") {
+        throw new HTTPException(409, { message: "Not the player's turn" });
+      }
+
+      let next;
+      try {
+        next = makeMove(
+          {
+            board: session.board,
+            currentPlayer: session.currentPlayer,
+            moveHistory: session.moveHistory,
+            result: session.result,
+            difficulty: session.difficulty,
+          },
+          position as Position,
+        );
+      } catch (err) {
+        throw new HTTPException(400, {
+          message: err instanceof Error ? err.message : "Invalid move",
+        });
+      }
+
+      let aiMove: Position | null = null;
+      // If the player's move didn't end the game, the AI plays right away.
+      if (next.result.status === "in_progress" && next.currentPlayer === "O") {
+        aiMove = getAiMove(next);
+        next = makeMove(next, aiMove);
+      }
+
+      // Mutate session in place with the latest engine state.
+      session.board = next.board;
+      session.currentPlayer = next.currentPlayer;
+      session.moveHistory = [...next.moveHistory];
+      session.result = next.result;
+
+      const terminal = session.result.status !== "in_progress";
+
+      let eloDelta: number | null = null;
+      let outcome: ReturnType<typeof outcomeForPlayer> | null = null;
+
+      if (terminal) {
+        const persisted = await persistTerminalGame(db, redis, {
+          userId: session.userId,
+          difficulty: session.difficulty,
+          result: session.result,
+          moveHistory: session.moveHistory,
+          ranked: session.ranked,
+          durationMs: Date.now() - session.startedAt,
+        });
+        outcome = persisted.outcome;
+        eloDelta = persisted.eloDelta;
+        await deleteSession(redis, session.id);
+      } else {
+        await updateSession(redis, session);
+      }
+
+      const body: MoveResponse = {
+        state: sessionToDto(session),
+        aiMove,
+        terminal,
+        outcome,
+        eloDelta,
+      };
+      return c.json(body);
+    })
+
+    .post("/resign", zValidator("json", ResignRequestSchema), async (c) => {
+      const { sessionId } = c.req.valid("json");
+      const identity = c.get("identity");
+
+      const session = await getSession(redis, sessionId);
+      if (!session) {
+        throw new HTTPException(404, { message: "Session not found or expired" });
+      }
+      if (session.userId !== identity.id) {
+        throw new HTTPException(403, { message: "Session belongs to another user" });
+      }
+      if (session.result.status !== "in_progress") {
+        throw new HTTPException(409, { message: "Game is already over" });
+      }
+
+      session.result = resignAsLoss();
+
+      const persisted = await persistTerminalGame(db, redis, {
+        userId: session.userId,
+        difficulty: session.difficulty,
+        result: session.result,
+        moveHistory: session.moveHistory,
+        ranked: session.ranked,
+        durationMs: Date.now() - session.startedAt,
+      });
+      await deleteSession(redis, session.id);
+
+      const body: ResignResponse = {
+        state: sessionToDto(session),
+        outcome: persisted.outcome,
+        eloDelta: persisted.eloDelta,
+      };
+      return c.json(body);
+    })
+
+    .get("/:id/state", async (c) => {
+      const id = c.req.param("id");
+      const identity = c.get("identity");
+      const session = await getSession(redis, id);
+      if (!session) {
+        throw new HTTPException(404, { message: "Session not found or expired" });
+      }
+      if (session.userId !== identity.id) {
+        throw new HTTPException(403, { message: "Session belongs to another user" });
+      }
+      return c.json(sessionToDto(session));
+    });
+}

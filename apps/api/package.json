@@ -6,17 +6,32 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@cheddr/api-types": "workspace:*",
+    "@cheddr/db": "workspace:*",
     "@cheddr/game-engine": "workspace:*",
-    "@hono/node-server": "latest",
-    "hono": "latest"
+    "@clerk/backend": "^3.2.13",
+    "@hono/node-server": "^2.0.0",
+    "@hono/zod-validator": "^0.7.6",
+    "@sentry/node": "^10.49.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.14",
+    "jose": "^6.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cheddr/config-ts": "workspace:*",
+    "@electric-sql/pglite": "^0.4.4",
     "@types/node": "^25.6.0",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }

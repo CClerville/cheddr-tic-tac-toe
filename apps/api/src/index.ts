@@ -1,8 +1,11 @@
 import { serve } from "@hono/node-server";
-import { app } from "./app";
+import { buildApp } from "./buildApp";
+import { getEnv } from "./env";
 
-const port = Number(process.env.PORT) || 3005;
+const app = buildApp();
+const env = getEnv();
 
-serve({ fetch: app.fetch, port }, (info) => {
+serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+  // eslint-disable-next-line no-console
   console.log(`API server running at http://localhost:${info.port}`);
 });
