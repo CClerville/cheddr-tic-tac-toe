@@ -1,6 +1,10 @@
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Cell } from "./Cell";
 import type { Board as BoardType, Position } from "@cheddr/game-engine";
+
+/** Space for title, status copy, difficulty row, play-again, gaps (pt). */
+const LAYOUT_RESERVE_Y = 360;
 
 interface BoardProps {
   board: BoardType;
@@ -9,8 +13,16 @@ interface BoardProps {
 }
 
 export function Board({ board, onCellPress, disabled }: BoardProps) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const usableHeight =
+    windowHeight - insets.top - insets.bottom - LAYOUT_RESERVE_Y;
+  const maxByWidth = windowWidth - 32;
+  const raw = Math.min(320, maxByWidth, usableHeight);
+  const side = Math.floor(Math.max(160, raw));
+
   return (
-    <View className="w-80 aspect-square">
+    <View className="self-center" style={{ width: side, height: side }}>
       {[0, 1, 2].map((row) => (
         <View key={row} className="flex-row flex-1">
           {[0, 1, 2].map((col) => {

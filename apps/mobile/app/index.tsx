@@ -1,8 +1,9 @@
-import { View, Text, Pressable, SafeAreaView } from "react-native";
 import { Board } from "@/components/Board";
-import { GameStatus } from "@/components/GameStatus";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
+import { GameStatus } from "@/components/GameStatus";
 import { useGame } from "@/hooks/useGame";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function GameScreen() {
   const { gameState, difficulty, playMove, resetGame, changeDifficulty } =
@@ -12,17 +13,26 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
-      <View className="flex-1 items-center justify-between py-8 px-4">
-        <View className="items-center gap-2">
+      <View className="flex-1 px-4">
+        <View className="shrink-0 items-center pt-4 pb-2">
           <Text className="text-3xl font-bold text-white tracking-tight">
-            Misere Tic-Tac-Toe
+            Cheddr Tic-Tac-Toe
           </Text>
-          <Text className="text-sm text-zinc-500">
-            Three-in-a-row loses!
-          </Text>
+          <Text className="text-sm text-zinc-500">Three-in-a-row loses!</Text>
         </View>
 
-        <View className="items-center gap-6">
+        <ScrollView
+          className="min-h-0 flex-1"
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 20,
+            paddingVertical: 8,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <GameStatus
             result={gameState.result}
             currentPlayer={gameState.currentPlayer}
@@ -32,13 +42,10 @@ export default function GameScreen() {
             onCellPress={playMove}
             disabled={isGameOver}
           />
-        </View>
+        </ScrollView>
 
-        <View className="items-center gap-4">
-          <DifficultyPicker
-            current={difficulty}
-            onChange={changeDifficulty}
-          />
+        <View className="shrink-0 items-center gap-4 pb-6 pt-2">
+          <DifficultyPicker current={difficulty} onChange={changeDifficulty} />
           {isGameOver && (
             <Pressable
               onPress={resetGame}
