@@ -1,4 +1,4 @@
-# Agent instructions (mountainviewslu)
+# Agent instructions (cheddr-tic-tac-toe)
 
 This project vendors **[addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)** for Cursor. Upstream docs: [docs/cursor-setup.md](https://github.com/addyosmani/agent-skills/blob/main/docs/cursor-setup.md).
 
