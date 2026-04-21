@@ -1,0 +1,62 @@
+name: DB Migrations
+
+# Runs Drizzle migrations against the appropriate Neon branch:
+#   - On PRs, target the per-PR Neon preview branch (created by the Neon
+#     GitHub integration). DATABASE_URL is exposed as a per-deployment env
+#     var on Vercel and mirrored here as a repo secret named
+#     NEON_PREVIEW_DATABASE_URL_<PR_NUMBER> when the integration is wired
+#     end-to-end. For most setups it is simpler to let Vercel run migrations
+#     in a "Build Command" hook -- this workflow is the IaC alternative.
+#   - On push to `main`, run against production.
+
+on:
+  pull_request:
+    paths:
+      - "packages/db/**"
+      - ".github/workflows/db-migrate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/**"
+      - ".github/workflows/db-migrate.yml"
+
+concurrency:
+  group: db-migrate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: drizzle migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build db package
+        run: pnpm --filter @cheddr/db build || true
+
+      - name: Resolve DATABASE_URL
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "DATABASE_URL=${{ secrets.NEON_PREVIEW_DATABASE_URL }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "DATABASE_URL=${{ secrets.NEON_PRODUCTION_DATABASE_URL }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push schema (drizzle-kit)
+        env:
+          DATABASE_URL: ${{ steps.env.outputs.DATABASE_URL }}
+        working-directory: packages/db
+        run: pnpm drizzle-kit push

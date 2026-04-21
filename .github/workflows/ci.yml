@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint • typecheck • test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (turbo)
+        run: pnpm turbo run build --filter='!@cheddr/mobile'
+
+      - name: Test (turbo)
+        run: pnpm turbo run test --filter='!@cheddr/mobile'
+
+      - name: Mobile typecheck
+        working-directory: apps/mobile
+        run: pnpm tsc --noEmit
