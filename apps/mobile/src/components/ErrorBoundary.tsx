@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 
+import { Sentry } from "@/lib/sentry";
 import { gameRepository } from "@/storage/gameRepository";
 
 interface ErrorBoundaryProps {
@@ -25,6 +26,7 @@ export class ErrorBoundary extends Component<
     if (__DEV__) {
       console.error("[ErrorBoundary]", error);
     }
+    Sentry.captureException(error, { tags: { boundary: "root" } });
   }
 
   reset = async () => {

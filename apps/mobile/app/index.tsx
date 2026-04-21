@@ -67,17 +67,39 @@ export default function HomeScreen() {
             </Text>
           </PressableScale>
 
-          <PressableScale
-            onPress={() => router.push("/stats")}
-            accessibilityRole="button"
-            accessibilityLabel="Stats"
-            accessibilityHint="View detailed win/loss statistics"
-            className="bg-elevated dark:bg-elevated-dark px-12 py-3 rounded-full w-full items-center"
-          >
-            <Text className="text-primary dark:text-primary-dark font-medium text-base">
-              Stats
-            </Text>
-          </PressableScale>
+          <View className="flex-row gap-3 w-full">
+            <PressableScale
+              onPress={() => router.push("/stats")}
+              accessibilityRole="button"
+              accessibilityLabel="Stats"
+              accessibilityHint="View detailed win/loss statistics"
+              className="flex-1 bg-elevated dark:bg-elevated-dark py-3 rounded-full items-center"
+            >
+              <Text className="text-primary dark:text-primary-dark font-medium text-base">
+                Stats
+              </Text>
+            </PressableScale>
+            <PressableScale
+              onPress={() => router.push("/leaderboard")}
+              accessibilityRole="button"
+              accessibilityLabel="Leaderboard"
+              className="flex-1 bg-elevated dark:bg-elevated-dark py-3 rounded-full items-center"
+            >
+              <Text className="text-primary dark:text-primary-dark font-medium text-base">
+                Ranks
+              </Text>
+            </PressableScale>
+            <PressableScale
+              onPress={() => router.push("/profile")}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+              className="flex-1 bg-elevated dark:bg-elevated-dark py-3 rounded-full items-center"
+            >
+              <Text className="text-primary dark:text-primary-dark font-medium text-base">
+                Profile
+              </Text>
+            </PressableScale>
+          </View>
 
           <ThemeToggle />
         </View>

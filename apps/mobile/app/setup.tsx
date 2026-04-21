@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@clerk/clerk-expo";
 
 import { DifficultyPicker } from "@/components/DifficultyPicker";
 import { PressableScale } from "@/components/PressableScale";
@@ -17,6 +18,8 @@ const DESCRIPTIONS: Record<Difficulty, string> = {
 
 export default function SetupScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate");
+  const [ranked, setRanked] = useState(false);
+  const { isSignedIn } = useAuth();
 
   return (
     <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
@@ -50,6 +53,32 @@ export default function SetupScreen() {
         <View className="items-center">
           <DifficultyPicker current={difficulty} onChange={setDifficulty} />
         </View>
+
+        <View className="bg-elevated dark:bg-elevated-dark rounded-2xl px-4 py-3 flex-row items-center justify-between">
+          <View className="flex-1 pr-3">
+            <Text className="text-primary dark:text-primary-dark font-semibold">
+              Ranked
+            </Text>
+            <Text className="text-xs text-secondary dark:text-secondary-dark mt-1">
+              {ranked
+                ? "Server-validated. Counts toward ELO and leaderboard."
+                : "Casual offline play. Doesn't affect rank."}
+            </Text>
+            {ranked && !isSignedIn ? (
+              <Text className="text-xs text-amber-500 mt-1">
+                Sign in to appear on the leaderboard.
+              </Text>
+            ) : null}
+          </View>
+          <Switch
+            value={ranked}
+            onValueChange={(v) => {
+              haptics.selectionChange();
+              setRanked(v);
+            }}
+            accessibilityLabel="Toggle ranked play"
+          />
+        </View>
       </View>
 
       <View className="px-6 pb-8">
@@ -59,7 +88,7 @@ export default function SetupScreen() {
             await gameRepository.clearGame();
             router.replace({
               pathname: "/game",
-              params: { difficulty },
+              params: { difficulty, ranked: ranked ? "1" : "0" },
             });
           }}
           accessibilityRole="button"

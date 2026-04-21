@@ -3,10 +3,24 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ClerkProvider } from "@clerk/clerk-expo";
+import { QueryClientProvider } from "@tanstack/react-query";
+import Constants from "expo-constants";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SplashGate } from "@/components/SplashGate";
+import { AuthBootstrap } from "@/providers/AuthBootstrap";
+import { queryClient } from "@/lib/queryClient";
+import { clerkTokenCache } from "@/lib/secureStore";
+import { initSentry } from "@/lib/sentry";
 import { ThemeProvider, useTheme } from "@/theme/ThemeProvider";
+
+initSentry();
+
+const CLERK_PUBLISHABLE_KEY =
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+  (Constants.expoConfig?.extra?.clerkPublishableKey as string | undefined) ??
+  "";
 
 function ThemedStack() {
   const { resolved, palette } = useTheme();
@@ -24,6 +38,9 @@ function ThemedStack() {
         <Stack.Screen name="setup" />
         <Stack.Screen name="game" />
         <Stack.Screen name="stats" />
+        <Stack.Screen name="leaderboard" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="sign-in" options={{ presentation: "modal" }} />
         <Stack.Screen
           name="game-over"
           options={{ presentation: "modal", animation: "slide_from_bottom" }}
@@ -37,13 +54,22 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <SplashGate>
-            <ErrorBoundary>
-              <ThemedStack />
-            </ErrorBoundary>
-          </SplashGate>
-        </ThemeProvider>
+        <ClerkProvider
+          publishableKey={CLERK_PUBLISHABLE_KEY}
+          tokenCache={clerkTokenCache}
+        >
+          <QueryClientProvider client={queryClient}>
+            <AuthBootstrap>
+              <ThemeProvider>
+                <SplashGate>
+                  <ErrorBoundary>
+                    <ThemedStack />
+                  </ErrorBoundary>
+                </SplashGate>
+              </ThemeProvider>
+            </AuthBootstrap>
+          </QueryClientProvider>
+        </ClerkProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
