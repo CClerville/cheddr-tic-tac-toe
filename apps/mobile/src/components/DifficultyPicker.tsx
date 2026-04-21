@@ -14,24 +14,34 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 
 export function DifficultyPicker({ current, onChange }: DifficultyPickerProps) {
   return (
-    <View className="flex-row gap-2">
-      {DIFFICULTIES.map(({ value, label }) => (
-        <Pressable
-          key={value}
-          onPress={() => onChange(value)}
-          className={`px-4 py-2 rounded-full ${
-            current === value ? "bg-accent" : "bg-zinc-800"
-          }`}
-        >
-          <Text
-            className={`text-sm font-medium ${
-              current === value ? "text-zinc-900" : "text-zinc-400"
+    <View className="flex-row gap-2" accessibilityRole="radiogroup">
+      {DIFFICULTIES.map(({ value, label }) => {
+        const selected = current === value;
+        return (
+          <Pressable
+            key={value}
+            onPress={() => onChange(value)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={label}
+            className={`px-4 py-2 rounded-full ${
+              selected
+                ? "bg-accent dark:bg-accent-dark"
+                : "bg-subtle dark:bg-subtle-dark"
             }`}
           >
-            {label}
-          </Text>
-        </Pressable>
-      ))}
+            <Text
+              className={`text-sm font-medium ${
+                selected
+                  ? "text-accent-contrast dark:text-accent-contrast-dark"
+                  : "text-secondary dark:text-secondary-dark"
+              }`}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

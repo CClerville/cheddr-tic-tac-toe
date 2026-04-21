@@ -1,70 +1,104 @@
-import { Board } from "@/components/Board";
-import { DifficultyPicker } from "@/components/DifficultyPicker";
-import { GameStatus } from "@/components/GameStatus";
-import { GAME_SCREEN_HORIZONTAL_INSET_PT } from "@/constants/gameScreenLayout";
-import { useGame } from "@/hooks/useGame";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
+import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function GameScreen() {
-  const { gameState, difficulty, playMove, resetGame, changeDifficulty } =
-    useGame("beginner");
+import { PressableScale } from "@/components/PressableScale";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { haptics } from "@/lib/haptics";
+import {
+  EMPTY_STATS,
+  gameRepository,
+  type GameStats,
+} from "@/storage/gameRepository";
 
-  const isGameOver = gameState.result.status !== "in_progress";
+export default function HomeScreen() {
+  const [stats, setStats] = useState<GameStats>(EMPTY_STATS);
+
+  useEffect(() => {
+    let cancelled = false;
+    gameRepository
+      .loadStats()
+      .then((s) => {
+        if (!cancelled) setStats(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface">
-      <View
-        className="flex-1"
-        style={{ paddingHorizontal: GAME_SCREEN_HORIZONTAL_INSET_PT }}
-      >
-        <View className="shrink-0 items-center pt-4 pb-2">
-          <Text className="text-3xl font-bold text-white tracking-tight">
-            Cheddr Tic-Tac-Toe
+    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
+      <View className="flex-1 items-center justify-between px-6 py-10">
+        <View className="items-center">
+          <Text className="text-4xl font-bold text-primary dark:text-primary-dark tracking-tight">
+            Cheddr
           </Text>
-          <Text className="text-sm text-zinc-500">Three-in-a-row loses!</Text>
+          <Text className="text-base text-secondary dark:text-secondary-dark mt-1">
+            Misere Tic-Tac-Toe
+          </Text>
         </View>
 
-        <ScrollView
-          className="min-h-0 flex-1"
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 20,
-            paddingVertical: 8,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <GameStatus
-            result={gameState.result}
-            currentPlayer={gameState.currentPlayer}
-          />
-          <Board
-            board={gameState.board}
-            onCellPress={playMove}
-            disabled={isGameOver}
-          />
-        </ScrollView>
+        <View className="items-center gap-3">
+          <Text className="text-sm uppercase tracking-widest text-muted dark:text-muted-dark">
+            Three-in-a-row loses
+          </Text>
+          <View className="flex-row gap-6 mt-2">
+            <Stat label="Wins" value={stats.wins} />
+            <Stat label="Losses" value={stats.losses} />
+            <Stat label="Draws" value={stats.draws} />
+          </View>
+        </View>
 
-        <View className="shrink-0 items-center gap-4 pb-6 pt-2">
-          <DifficultyPicker current={difficulty} onChange={changeDifficulty} />
-          {isGameOver && (
-            <Pressable
-              onPress={resetGame}
-              accessibilityRole="button"
-              accessibilityLabel="Play Again"
-              accessibilityHint="Starts a new game with the same difficulty"
-              className="bg-accent px-8 py-3 rounded-full active:opacity-80"
-            >
-              <Text className="text-zinc-900 font-semibold text-base">
-                Play Again
-              </Text>
-            </Pressable>
-          )}
+        <View className="items-center gap-4 w-full">
+          <PressableScale
+            onPress={() => {
+              haptics.selectionChange();
+              router.push("/setup");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Play"
+            accessibilityHint="Choose difficulty and start a new game"
+            className="bg-accent dark:bg-accent-dark px-12 py-4 rounded-full w-full items-center"
+          >
+            <Text className="text-accent-contrast dark:text-accent-contrast-dark font-semibold text-lg">
+              Play
+            </Text>
+          </PressableScale>
+
+          <PressableScale
+            onPress={() => router.push("/stats")}
+            accessibilityRole="button"
+            accessibilityLabel="Stats"
+            accessibilityHint="View detailed win/loss statistics"
+            className="bg-elevated dark:bg-elevated-dark px-12 py-3 rounded-full w-full items-center"
+          >
+            <Text className="text-primary dark:text-primary-dark font-medium text-base">
+              Stats
+            </Text>
+          </PressableScale>
+
+          <ThemeToggle />
         </View>
       </View>
     </SafeAreaView>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${value} ${label.toLowerCase()}`}
+      className="items-center"
+    >
+      <Text className="text-3xl font-bold text-primary dark:text-primary-dark">
+        {value}
+      </Text>
+      <Text className="text-xs uppercase tracking-wider text-muted dark:text-muted-dark mt-1">
+        {label}
+      </Text>
+    </View>
   );
 }
