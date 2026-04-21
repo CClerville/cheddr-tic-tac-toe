@@ -1,0 +1,22 @@
+{
+  "name": "@cheddr/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@cheddr/game-engine": "workspace:*",
+    "@hono/node-server": "latest",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "@cheddr/config-ts": "workspace:*",
+    "@types/node": "^25.6.0",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

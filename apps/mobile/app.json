@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Cheddr Tic-Tac-Toe",
+    "slug": "cheddr-tic-tac-toe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "cheddr",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cheddr.tictactoe"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#18181b"
+      },
+      "package": "com.cheddr.tictactoe"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router"]
+  }
+}
