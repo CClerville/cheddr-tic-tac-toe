@@ -9,13 +9,13 @@ import { apiGet } from "@/lib/api";
 import type { Profile } from "@cheddr/api-types";
 
 export default function ProfileScreen() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, userId } = useAuth();
   const { signOut } = useClerk();
 
   const { data, isLoading, error, refetch } = useQuery<Profile>({
-    queryKey: ["user", "me"],
+    queryKey: ["user", "me", userId ?? "signed-out"],
     queryFn: () => apiGet<Profile>("/user/me"),
-    enabled: isLoaded,
+    enabled: isLoaded && (!isSignedIn || !!userId),
   });
 
   return (

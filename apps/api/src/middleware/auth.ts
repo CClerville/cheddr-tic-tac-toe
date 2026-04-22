@@ -67,9 +67,23 @@ async function resolveIdentity(args: {
           elo: user.elo,
         };
       }
-    } catch {
-      // fall through to anon
+      // Token verified but had no `sub`; surface so it doesn't look like silent 401.
+      console.warn("[auth] Clerk verify ok but missing sub claim", {
+        hasIss: typeof claims.iss === "string",
+        iss: typeof claims.iss === "string" ? claims.iss : null,
+      });
+    } catch (err) {
+      // Diagnostic: log Clerk verify failure shape so we can tell the
+      // difference between "anon token (expected miss)" and "Clerk token
+      // that should have verified". Remove once root cause is known.
+      console.warn("[auth] Clerk verify failed", {
+        name: err instanceof Error ? err.name : typeof err,
+        message: err instanceof Error ? err.message : String(err),
+        tokenPrefix: token.slice(0, 16),
+      });
     }
+  } else {
+    console.warn("[auth] CLERK_SECRET_KEY missing on API; skipping Clerk path");
   }
 
   try {
@@ -81,7 +95,12 @@ async function resolveIdentity(args: {
       username: user.username,
       elo: user.elo,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[auth] Anon verify failed (final fallback)", {
+      name: err instanceof Error ? err.name : typeof err,
+      message: err instanceof Error ? err.message : String(err),
+      tokenPrefix: token.slice(0, 16),
+    });
     return null;
   }
 }
