@@ -1,11 +1,12 @@
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
-import { verifyToken } from "@clerk/backend";
+import { decodeProtectedHeader } from "jose";
 import { schema, type Database } from "@cheddr/db";
 import type { Identity } from "@cheddr/api-types";
 
 import { verifyAnonToken } from "../lib/anonToken.js";
+import { verifyClerkSessionToken } from "../lib/clerkVerify.js";
 import type { AppBindings } from "../types.js";
 
 export interface AuthMiddlewareOptions {
@@ -15,9 +16,19 @@ export interface AuthMiddlewareOptions {
   jwtSecret: string;
 }
 
+function looksLikeClerkToken(token: string): boolean {
+  try {
+    const header = decodeProtectedHeader(token);
+    return header.alg === "RS256" && typeof header.kid === "string";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Extract a bearer token, verify it (Clerk JWT first, then HS256 anon
- * fallback), and attach the resolved identity to the request context.
+ * Extract a bearer token, verify it (Clerk RS256 when the JWT header
+ * matches, else HS256 anon), and attach the resolved identity to the request
+ * context. RS256 failures fall through to anon verification.
  *
  * On success, ensures a `users` row exists for the authenticated principal
  * (lazy-create for both Clerk and anon). Returns 401 on any failure.
@@ -52,11 +63,10 @@ async function resolveIdentity(args: {
 }): Promise<Identity | null> {
   const { token, db, clerkSecretKey, jwtSecret } = args;
 
-  // Try Clerk first. Anon tokens never validate against Clerk's JWKS, so
-  // the failure is fast.
-  if (clerkSecretKey) {
+  // Anon tokens are HS256 without `kid`; only attempt Clerk for RS256 + kid.
+  if (clerkSecretKey && looksLikeClerkToken(token)) {
     try {
-      const claims = await verifyToken(token, { secretKey: clerkSecretKey });
+      const claims = await verifyClerkSessionToken(token, clerkSecretKey);
       const userId = claims.sub;
       if (typeof userId === "string" && userId.length > 0) {
         const user = await ensureUser(db, userId, "clerk");
@@ -72,17 +82,10 @@ async function resolveIdentity(args: {
         hasIss: typeof claims.iss === "string",
         iss: typeof claims.iss === "string" ? claims.iss : null,
       });
-    } catch (err) {
-      // Diagnostic: log Clerk verify failure shape so we can tell the
-      // difference between "anon token (expected miss)" and "Clerk token
-      // that should have verified". Remove once root cause is known.
-      console.warn("[auth] Clerk verify failed", {
-        name: err instanceof Error ? err.name : typeof err,
-        message: err instanceof Error ? err.message : String(err),
-        tokenPrefix: token.slice(0, 16),
-      });
+    } catch {
+      // Fall through to anon verify (e.g. expired or bad RS256 signature).
     }
-  } else {
+  } else if (!clerkSecretKey) {
     console.warn("[auth] CLERK_SECRET_KEY missing on API; skipping Clerk path");
   }
 

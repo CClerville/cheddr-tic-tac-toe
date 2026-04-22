@@ -54,14 +54,19 @@ export interface TestHarness {
   signInAnon(): Promise<{ token: string; userId: string }>;
 }
 
-export async function createHarness(): Promise<TestHarness> {
+export type CreateHarnessOptions = {
+  /** When set, auth middleware will attempt Clerk for RS256 session tokens. */
+  clerkSecretKey?: string | null;
+};
+
+export async function createHarness(options?: CreateHarnessOptions): Promise<TestHarness> {
   const db = await createTestDb();
   const redis = createFakeRedis();
   const jwtSecret = "test-jwt-secret-please-do-not-use-in-prod-32+";
   const deps: AppDeps = {
     db,
     redis: redis as unknown as AppDeps["redis"],
-    clerkSecretKey: null,
+    clerkSecretKey: options?.clerkSecretKey !== undefined ? options.clerkSecretKey : null,
     jwtSecret,
   };
 
