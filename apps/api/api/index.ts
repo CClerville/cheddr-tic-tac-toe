@@ -15,24 +15,18 @@ export const config = {
  * every request would just repeat the same throw.
  */
 type Handler = (req: Request) => Response | Promise<Response>;
-type BuildOk = { ok: true; handler: Handler };
-type BuildErr = { ok: false; error: Error };
-type Built = BuildOk | BuildErr;
 
-let cached: Built | null = null;
+let cachedHandler: Handler | null = null;
+let cachedError: Error | null = null;
 
-function build(): Built {
-  if (cached) return cached;
+function build(): void {
+  if (cachedHandler || cachedError) return;
   try {
     const app = buildApp();
-    cached = { ok: true, handler: handle(app) satisfies Handler };
+    cachedHandler = handle(app) satisfies Handler;
   } catch (err) {
-    cached = {
-      ok: false,
-      error: err instanceof Error ? err : new Error(String(err)),
-    };
+    cachedError = err instanceof Error ? err : new Error(String(err));
   }
-  return cached;
 }
 
 function unavailable(error: Error): Response {
@@ -48,9 +42,14 @@ function unavailable(error: Error): Response {
 }
 
 async function dispatch(req: Request): Promise<Response> {
-  const built = build();
-  if (built.ok) return built.handler(req);
-  return unavailable(built.error);
+  build();
+  if (cachedHandler) {
+    return cachedHandler(req);
+  }
+  if (cachedError) {
+    return unavailable(cachedError);
+  }
+  return unavailable(new Error("API initialization produced no handler"));
 }
 
 export default dispatch;
