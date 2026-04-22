@@ -84,6 +84,9 @@ importers:
       '@clerk/clerk-expo':
         specifier: ^2.19.31
         version: 2.19.31(11a5610af1e972b0891065de3e40696a)
+      '@clerk/shared':
+        specifier: ^3.47.4
+        version: 3.47.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@expo/metro-runtime':
         specifier: ~6.1.2
         version: 6.1.2(expo@54.0.33)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@react-native/metro-config@0.85.1(@babel/core@7.29.0)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@6.0.6))(react@19.1.0)
