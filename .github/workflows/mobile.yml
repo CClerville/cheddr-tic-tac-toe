@@ -36,6 +36,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Mobile imports from @cheddr/api-types and @cheddr/game-engine,
+      # both of which ship as compiled dist/. Build them so Metro can
+      # resolve their `main` fields.
+      - name: Build workspace deps
+        run: pnpm turbo run build --filter='./packages/*'
+
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
