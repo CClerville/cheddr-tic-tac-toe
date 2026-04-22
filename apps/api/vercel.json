@@ -7,7 +7,7 @@
   },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!favicon\\.png|favicon\\.ico|robots\\.txt).*)",
       "destination": "/api"
     }
   ],

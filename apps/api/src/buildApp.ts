@@ -2,7 +2,7 @@ import { Redis } from "@upstash/redis";
 import { createDb } from "@cheddr/db";
 
 import { createApp } from "./app";
-import { getEnv } from "./env";
+import { getEnv, getRedisRest } from "./env";
 import { initSentry } from "./lib/sentry";
 import { createAuthRoutes } from "./routes/auth";
 import { createGameRoutes } from "./routes/game";
@@ -22,16 +22,19 @@ export function getDeps(): AppDeps {
   const env = getEnv();
 
   if (!env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required");
+  const redisRest = getRedisRest();
+  if (!redisRest.url || !redisRest.token) {
+    throw new Error(
+      "Upstash REST credentials are required (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN)",
+    );
   }
   if (!env.JWT_SECRET) throw new Error("JWT_SECRET is required");
 
   cachedDeps = {
     db: createDb(env.DATABASE_URL),
     redis: new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
+      url: redisRest.url,
+      token: redisRest.token,
     }),
     clerkSecretKey: env.CLERK_SECRET_KEY ?? null,
     jwtSecret: env.JWT_SECRET,
