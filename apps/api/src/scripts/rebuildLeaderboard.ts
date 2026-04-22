@@ -2,8 +2,8 @@ import { Redis } from "@upstash/redis";
 import { createDb, schema } from "@cheddr/db";
 import { eq } from "drizzle-orm";
 
-import { LEADERBOARD_KEY } from "../lib/leaderboard";
-import { getEnv, getRedisRest } from "../env";
+import { LEADERBOARD_KEY } from "../lib/leaderboard.js";
+import { getEnv, getRedisRest } from "../env.js";
 
 /**
  * Rebuild the global leaderboard sorted set from Postgres truth.

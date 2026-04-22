@@ -9,9 +9,9 @@ import {
 } from "@cheddr/api-types";
 import { schema } from "@cheddr/db";
 
-import { auth } from "../middleware/auth";
-import { LEADERBOARD_KEY } from "../lib/leaderboard";
-import type { AppBindings, AppDeps } from "../types";
+import { auth } from "../middleware/auth.js";
+import { LEADERBOARD_KEY } from "../lib/leaderboard.js";
+import type { AppBindings, AppDeps } from "../types.js";
 
 export function createLeaderboardRoutes(deps: AppDeps) {
   const { db, redis, clerkSecretKey, jwtSecret } = deps;

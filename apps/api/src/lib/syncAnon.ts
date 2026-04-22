@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import type { Redis } from "@upstash/redis";
 import { schema, type Database } from "@cheddr/db";
 
-import { LEADERBOARD_KEY, setLeaderboardScore } from "./leaderboard";
+import { LEADERBOARD_KEY, setLeaderboardScore } from "./leaderboard.js";
 
 export interface SyncAnonResult {
   mergedGames: number;

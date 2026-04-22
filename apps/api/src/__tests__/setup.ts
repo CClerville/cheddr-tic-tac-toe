@@ -1,5 +1,5 @@
 import { beforeEach } from "vitest";
-import { resetEnvCacheForTests } from "../env";
+import { resetEnvCacheForTests } from "../env.js";
 
 beforeEach(() => {
   process.env.NODE_ENV = "test";

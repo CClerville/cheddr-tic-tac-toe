@@ -1,14 +1,14 @@
 import { Redis } from "@upstash/redis";
 import { createDb } from "@cheddr/db";
 
-import { createApp } from "./app";
-import { getEnv, getRedisRest } from "./env";
-import { initSentry } from "./lib/sentry";
-import { createAuthRoutes } from "./routes/auth";
-import { createGameRoutes } from "./routes/game";
-import { createLeaderboardRoutes } from "./routes/leaderboard";
-import { createUserRoutes } from "./routes/user";
-import type { AppDeps } from "./types";
+import { createApp } from "./app.js";
+import { getEnv, getRedisRest } from "./env.js";
+import { initSentry } from "./lib/sentry.js";
+import { createAuthRoutes } from "./routes/auth.js";
+import { createGameRoutes } from "./routes/game.js";
+import { createLeaderboardRoutes } from "./routes/leaderboard.js";
+import { createUserRoutes } from "./routes/user.js";
+import type { AppDeps } from "./types.js";
 
 /**
  * Lazy-built singletons. We construct on first call so a cold Vercel

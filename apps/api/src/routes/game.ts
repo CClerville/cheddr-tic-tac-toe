@@ -18,16 +18,16 @@ import {
   type Position,
 } from "@cheddr/game-engine";
 
-import { auth } from "../middleware/auth";
+import { auth } from "../middleware/auth.js";
 import {
   createSession,
   deleteSession,
   getSession,
   updateSession,
   type GameSession,
-} from "../lib/session";
-import { outcomeForPlayer, persistTerminalGame } from "../lib/persist";
-import type { AppBindings, AppDeps } from "../types";
+} from "../lib/session.js";
+import { outcomeForPlayer, persistTerminalGame } from "../lib/persist.js";
+import type { AppBindings, AppDeps } from "../types.js";
 
 function sessionToDto(session: GameSession): GameStateDtoType {
   return {

@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
-import { buildApp } from "./buildApp";
-import { getEnv } from "./env";
+import { buildApp } from "./buildApp.js";
+import { getEnv } from "./env.js";
 
 const app = buildApp();
 const env = getEnv();

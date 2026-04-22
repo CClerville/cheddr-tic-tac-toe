@@ -5,8 +5,8 @@ import { verifyToken } from "@clerk/backend";
 import { schema, type Database } from "@cheddr/db";
 import type { Identity } from "@cheddr/api-types";
 
-import { verifyAnonToken } from "../lib/anonToken";
-import type { AppBindings } from "../types";
+import { verifyAnonToken } from "../lib/anonToken.js";
+import type { AppBindings } from "../types.js";
 
 export interface AuthMiddlewareOptions {
   db: Database;

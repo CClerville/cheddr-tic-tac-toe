@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@cheddr/config-ts": "workspace:*",
-    "typescript": "latest",
-    "vitest": "latest"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

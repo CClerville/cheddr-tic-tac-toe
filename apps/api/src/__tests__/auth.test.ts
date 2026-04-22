@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
-import { createApp } from "../app";
-import { createAuthRoutes } from "../routes/auth";
-import { mintAnonToken, verifyAnonToken } from "../lib/anonToken";
-import { createHarness } from "./harness";
+import { createApp } from "../app.js";
+import { createAuthRoutes } from "../routes/auth.js";
+import { mintAnonToken, verifyAnonToken } from "../lib/anonToken.js";
+import { createHarness } from "./harness.js";
 
 async function build() {
   const harness = await createHarness();

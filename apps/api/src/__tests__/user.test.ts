@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
-import { createApp } from "../app";
-import { createUserRoutes } from "../routes/user";
-import { ensureUser } from "../middleware/auth";
-import { mintAnonToken } from "../lib/anonToken";
-import { persistTerminalGame } from "../lib/persist";
-import { LEADERBOARD_KEY } from "../lib/leaderboard";
-import { createHarness } from "./harness";
+import { createApp } from "../app.js";
+import { createUserRoutes } from "../routes/user.js";
+import { ensureUser } from "../middleware/auth.js";
+import { mintAnonToken } from "../lib/anonToken.js";
+import { persistTerminalGame } from "../lib/persist.js";
+import { LEADERBOARD_KEY } from "../lib/leaderboard.js";
+import { createHarness } from "./harness.js";
 
 async function build() {
   const harness = await createHarness();
@@ -150,7 +150,7 @@ describe("POST /user/sync-anon", () => {
     // re-mounting the route with a Clerk-bound auth via a fake Clerk
     // verifier. Simpler: call the underlying function directly. (We
     // already cover the route's authorization in the previous test.)
-    const { syncAnonToClerk } = await import("../lib/syncAnon");
+    const { syncAnonToClerk } = await import("../lib/syncAnon.js");
     const result = await syncAnonToClerk(
       harness.db,
       harness.deps.redis,

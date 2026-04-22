@@ -37,7 +37,7 @@
     "@cheddr/game-engine": "workspace:*",
     "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.10",
-    "typescript": "latest",
-    "vitest": "latest"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }

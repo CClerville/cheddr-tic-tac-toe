@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
-import { getEnv } from "./env";
-import { requestId } from "./middleware/requestId";
-import { sentryErrorHandler, sentryScope } from "./middleware/sentry";
-import type { AppBindings } from "./types";
+import { getEnv } from "./env.js";
+import { requestId } from "./middleware/requestId.js";
+import { sentryErrorHandler, sentryScope } from "./middleware/sentry.js";
+import type { AppBindings } from "./types.js";
 
 /**
  * Build the Hono app. Routes and dependencies are registered by the caller

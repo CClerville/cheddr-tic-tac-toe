@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
-import { createApp } from "../app";
-import { createGameRoutes } from "../routes/game";
-import { LEADERBOARD_KEY } from "../lib/leaderboard";
-import { ensureUser } from "../middleware/auth";
-import { mintAnonToken } from "../lib/anonToken";
-import { createHarness } from "./harness";
+import { createApp } from "../app.js";
+import { createGameRoutes } from "../routes/game.js";
+import { LEADERBOARD_KEY } from "../lib/leaderboard.js";
+import { ensureUser } from "../middleware/auth.js";
+import { mintAnonToken } from "../lib/anonToken.js";
+import { createHarness } from "./harness.js";
 
 async function build() {
   const harness = await createHarness();
@@ -233,7 +233,7 @@ describe("game terminal persistence", () => {
     // Simpler alternative: anon games never appear on the leaderboard, so
     // this assertion is the inverse of the previous test. To prove the
     // positive case, we directly call persist with a clerk user.
-    const { persistTerminalGame } = await import("../lib/persist");
+    const { persistTerminalGame } = await import("../lib/persist.js");
     const out = await persistTerminalGame(harness.db, harness.deps.redis, {
       userId: clerkId,
       difficulty: "expert",

@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import type { AppBindings } from "../types";
+import type { AppBindings } from "../types.js";
 
 /**
  * Attach a per-request ID. Honours an inbound `x-request-id` if present

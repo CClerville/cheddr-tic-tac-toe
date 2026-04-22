@@ -1,5 +1,5 @@
 import { handle } from "hono/vercel";
-import { buildApp } from "../src/buildApp";
+import { buildApp } from "../src/buildApp.js";
 
 export const config = {
   runtime: "nodejs",
@@ -14,9 +14,10 @@ export const config = {
  * runtime instance — env vars are baked in at boot, so retrying on
  * every request would just repeat the same throw.
  */
-type Built =
-  | { ok: true; handler: (req: Request) => Response | Promise<Response> }
-  | { ok: false; error: Error };
+type Handler = (req: Request) => Response | Promise<Response>;
+type BuildOk = { ok: true; handler: Handler };
+type BuildErr = { ok: false; error: Error };
+type Built = BuildOk | BuildErr;
 
 let cached: Built | null = null;
 
@@ -24,27 +25,32 @@ function build(): Built {
   if (cached) return cached;
   try {
     const app = buildApp();
-    cached = { ok: true, handler: handle(app) };
+    cached = { ok: true, handler: handle(app) satisfies Handler };
   } catch (err) {
-    cached = { ok: false, error: err as Error };
+    cached = {
+      ok: false,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
   }
   return cached;
 }
 
+function unavailable(error: Error): Response {
+  const body = {
+    error: "service_unavailable",
+    message: "API failed to initialize. Check server environment configuration.",
+    detail: error.message,
+  };
+  return new Response(JSON.stringify(body), {
+    status: 503,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 async function dispatch(req: Request): Promise<Response> {
   const built = build();
-  if (!built.ok) {
-    const body = {
-      error: "service_unavailable",
-      message: "API failed to initialize. Check server environment configuration.",
-      detail: built.error.message,
-    };
-    return new Response(JSON.stringify(body), {
-      status: 503,
-      headers: { "content-type": "application/json" },
-    });
-  }
-  return built.handler(req);
+  if (built.ok) return built.handler(req);
+  return unavailable(built.error);
 }
 
 export default dispatch;
