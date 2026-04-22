@@ -7,6 +7,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cheddr-tic-tac-toe-api.vercel.app"
+      },
       "ios": {
         "simulator": true
       },
@@ -17,6 +20,9 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cheddr-tic-tac-toe-api.vercel.app"
+      },
       "ios": {
         "simulator": false
       },
@@ -26,6 +32,9 @@
     },
     "production": {
       "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cheddr-tic-tac-toe-api.vercel.app"
+      },
       "ios": {
         "autoIncrement": true
       },

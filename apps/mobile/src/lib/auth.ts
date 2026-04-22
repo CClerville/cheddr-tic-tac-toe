@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import type { AnonRequest, AnonResponse, MeResponse } from "@cheddr/api-types";
 
 import { apiGet, apiPost } from "./api";
@@ -62,7 +63,8 @@ export async function clearAnon(): Promise<void> {
 async function ensureDeviceId(): Promise<string> {
   const existing = await storage.getItem(KEYS.DEVICE_ID);
   if (existing) return existing;
-  const id = crypto.randomUUID();
+  // Hermes lacks `globalThis.crypto`; expo-crypto provides a sync UUID.
+  const id = Crypto.randomUUID();
   await storage.setItem(KEYS.DEVICE_ID, id);
   return id;
 }

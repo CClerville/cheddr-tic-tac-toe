@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import * as Crypto from "expo-crypto";
 
 import { KEYS, storage } from "./secureStore";
 
@@ -66,7 +67,8 @@ export async function authFetch(
     headers.set("Content-Type", "application/json");
   }
   if (!headers.has("x-request-id")) {
-    headers.set("x-request-id", crypto.randomUUID());
+    // Hermes has no global `crypto`. expo-crypto is sync and Hermes-safe.
+    headers.set("x-request-id", Crypto.randomUUID());
   }
 
   const url =

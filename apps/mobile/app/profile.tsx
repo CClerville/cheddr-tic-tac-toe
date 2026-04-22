@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth, useClerk } from "@clerk/clerk-expo";
 
 import { PressableScale } from "@/components/PressableScale";
-import { apiGet } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiGet } from "@/lib/api";
 import type { Profile } from "@cheddr/api-types";
 
 export default function ProfileScreen() {
@@ -39,7 +39,15 @@ export default function ProfileScreen() {
           </Text>
         ) : error ? (
           <View className="gap-3">
-            <Text className="text-red-500">Couldn't load profile.</Text>
+            <Text className="text-red-500 font-semibold">
+              Couldn't load profile.
+            </Text>
+            <Text className="text-secondary dark:text-secondary-dark text-xs">
+              {describeProfileError(error)}
+            </Text>
+            <Text className="text-secondary dark:text-secondary-dark text-xs opacity-60">
+              API: {API_BASE_URL}
+            </Text>
             <PressableScale
               onPress={() => refetch()}
               className="self-start bg-elevated dark:bg-elevated-dark px-4 py-2 rounded-full"
@@ -99,6 +107,21 @@ export default function ProfileScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+/**
+ * The user-visible error label tells us almost nothing on its own. We expose
+ * status + request id (when available) so server logs can be cross-referenced
+ * and so distinct failure modes (Vercel SSO 401, Clerk verify 401, network)
+ * are immediately distinguishable on-device.
+ */
+function describeProfileError(err: unknown): string {
+  if (err instanceof ApiError) {
+    const reqId = err.requestId ? ` · req ${err.requestId}` : "";
+    return `HTTP ${err.status}: ${err.message}${reqId}`;
+  }
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
+  return String(err);
 }
 
 function Row({ label, value }: { label: string; value: string }) {
