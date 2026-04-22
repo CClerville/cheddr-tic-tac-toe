@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
-import { createApp } from "../app";
-import { createLeaderboardRoutes } from "../routes/leaderboard";
-import { ensureUser } from "../middleware/auth";
+import { createApp } from "../app.js";
+import { createLeaderboardRoutes } from "../routes/leaderboard.js";
+import { ensureUser } from "../middleware/auth.js";
 import {
   LEADERBOARD_KEY,
   setLeaderboardScore,
-} from "../lib/leaderboard";
-import { rebuild } from "../scripts/rebuildLeaderboard";
-import { createHarness } from "./harness";
+} from "../lib/leaderboard.js";
+import { rebuild } from "../scripts/rebuildLeaderboard.js";
+import { createHarness } from "./harness.js";
 
 async function build() {
   const harness = await createHarness();

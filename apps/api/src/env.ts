@@ -12,6 +12,14 @@ const EnvSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
+  /**
+   * Aliases auto-provisioned by the Vercel ↔ Upstash Marketplace
+   * integration. We accept either naming so the app boots without
+   * extra env-var plumbing in Vercel.
+   */
+  KV_REST_API_URL: z.string().url().optional(),
+  KV_REST_API_TOKEN: z.string().optional(),
+
   CLERK_SECRET_KEY: z.string().optional(),
   CLERK_PUBLISHABLE_KEY: z.string().optional(),
 
@@ -55,4 +63,18 @@ export function requireEnv<K extends keyof Env>(key: K): NonNullable<Env[K]> {
 /** Reset the env cache (test helper only). */
 export function resetEnvCacheForTests(): void {
   cached = null;
+}
+
+/**
+ * Resolve the Upstash REST URL/token from either the canonical
+ * `UPSTASH_REDIS_REST_*` names or the `KV_REST_API_*` aliases that
+ * the Vercel Marketplace integration provisions. Returns `null` for
+ * either value if neither source provides it.
+ */
+export function getRedisRest(): { url: string | null; token: string | null } {
+  const env = getEnv();
+  return {
+    url: env.UPSTASH_REDIS_REST_URL ?? env.KV_REST_API_URL ?? null,
+    token: env.UPSTASH_REDIS_REST_TOKEN ?? env.KV_REST_API_TOKEN ?? null,
+  };
 }

@@ -8,8 +8,8 @@ import {
 } from "@cheddr/db";
 import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
 
-import { consumeEloBudget, setLeaderboardScore } from "./leaderboard";
-import { Sentry } from "./sentry";
+import { consumeEloBudget, setLeaderboardScore } from "./leaderboard.js";
+import { Sentry } from "./sentry.js";
 
 /**
  * Map a Misere `GameResult` into the human player's outcome. The human

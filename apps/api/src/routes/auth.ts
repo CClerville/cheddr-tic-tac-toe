@@ -6,9 +6,9 @@ import {
   type MeResponse,
 } from "@cheddr/api-types";
 
-import { mintAnonToken, newAnonUserId } from "../lib/anonToken";
-import { auth, ensureUser } from "../middleware/auth";
-import type { AppBindings, AppDeps } from "../types";
+import { mintAnonToken, newAnonUserId } from "../lib/anonToken.js";
+import { auth, ensureUser } from "../middleware/auth.js";
+import type { AppBindings, AppDeps } from "../types.js";
 
 /**
  * Auth routes. Anonymous mint is unauthenticated (it's how a brand-new

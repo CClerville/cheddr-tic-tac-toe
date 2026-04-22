@@ -22,3 +22,7 @@ The rest of the pack is in [`.cursor/skills/`](.cursor/skills/) as `<skill-name>
 ## Lifecycle map
 
 Upstream maps work to phases (Define → Plan → Build → Verify → Review → Ship). In Cursor, mirror that by attaching skills from `.cursor/skills/` when needed. Slash commands such as `/spec` and `/plan` are **Claude Code** entry points; here, open or `@`-mention the matching skill file instead.
+
+## CI/CD
+
+GitHub Actions run **Drizzle migrations** (Neon preview per PR; production on `main`), **Vercel API deploy** after prod migrations, and **Expo EAS Update / Build** for mobile. Required secrets/variables and workflow overview: [docs/ci.md](docs/ci.md).

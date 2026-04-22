@@ -1,0 +1,62 @@
+# EAS Update previews on pull requests (main-branch mobile release lives in deploy.yml).
+
+name: Mobile (EAS preview)
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "packages/api-types/**"
+      - "packages/game-engine/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/mobile.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: mobile-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: EAS Update (PR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Mobile imports from @cheddr/api-types and @cheddr/game-engine,
+      # both of which ship as compiled dist/. Build them so Metro can
+      # resolve their `main` fields.
+      - name: Build workspace deps
+        run: pnpm turbo run build --filter='./packages/*'
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: pnpm
+
+      - name: Publish preview update
+        uses: expo/expo-github-action/preview@v8
+        with:
+          working-directory: apps/mobile
+          command: >-
+            eas update
+            --branch pr-${{ github.event.pull_request.number }}
+            --message "${{ github.sha }}"
+            --non-interactive
+        env:
+          EAS_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID }}

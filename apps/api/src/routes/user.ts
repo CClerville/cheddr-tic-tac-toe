@@ -12,10 +12,10 @@ import {
 } from "@cheddr/api-types";
 import { schema } from "@cheddr/db";
 
-import { auth, ensureUser } from "../middleware/auth";
-import { verifyAnonToken } from "../lib/anonToken";
-import { syncAnonToClerk } from "../lib/syncAnon";
-import type { AppBindings, AppDeps } from "../types";
+import { auth, ensureUser } from "../middleware/auth.js";
+import { verifyAnonToken } from "../lib/anonToken.js";
+import { syncAnonToClerk } from "../lib/syncAnon.js";
+import type { AppBindings, AppDeps } from "../types.js";
 
 export function createUserRoutes(deps: AppDeps) {
   const { db, redis, clerkSecretKey, jwtSecret } = deps;

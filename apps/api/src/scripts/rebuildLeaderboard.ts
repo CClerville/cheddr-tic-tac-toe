@@ -2,8 +2,8 @@ import { Redis } from "@upstash/redis";
 import { createDb, schema } from "@cheddr/db";
 import { eq } from "drizzle-orm";
 
-import { LEADERBOARD_KEY } from "../lib/leaderboard";
-import { getEnv } from "../env";
+import { LEADERBOARD_KEY } from "../lib/leaderboard.js";
+import { getEnv, getRedisRest } from "../env.js";
 
 /**
  * Rebuild the global leaderboard sorted set from Postgres truth.
@@ -23,14 +23,15 @@ import { getEnv } from "../env";
  */
 async function main(): Promise<void> {
   const env = getEnv();
-  if (!env.DATABASE_URL || !env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+  const redisRest = getRedisRest();
+  if (!env.DATABASE_URL || !redisRest.url || !redisRest.token) {
     throw new Error("DATABASE_URL and Upstash Redis env vars are required");
   }
 
   const db = createDb(env.DATABASE_URL);
   const redis = new Redis({
-    url: env.UPSTASH_REDIS_REST_URL,
-    token: env.UPSTASH_REDIS_REST_TOKEN,
+    url: redisRest.url,
+    token: redisRest.token,
   });
 
   await redis.del(LEADERBOARD_KEY);

@@ -1,14 +1,14 @@
 import { Redis } from "@upstash/redis";
 import { createDb } from "@cheddr/db";
 
-import { createApp } from "./app";
-import { getEnv } from "./env";
-import { initSentry } from "./lib/sentry";
-import { createAuthRoutes } from "./routes/auth";
-import { createGameRoutes } from "./routes/game";
-import { createLeaderboardRoutes } from "./routes/leaderboard";
-import { createUserRoutes } from "./routes/user";
-import type { AppDeps } from "./types";
+import { createApp } from "./app.js";
+import { getEnv, getRedisRest } from "./env.js";
+import { initSentry } from "./lib/sentry.js";
+import { createAuthRoutes } from "./routes/auth.js";
+import { createGameRoutes } from "./routes/game.js";
+import { createLeaderboardRoutes } from "./routes/leaderboard.js";
+import { createUserRoutes } from "./routes/user.js";
+import type { AppDeps } from "./types.js";
 
 /**
  * Lazy-built singletons. We construct on first call so a cold Vercel
@@ -22,16 +22,19 @@ export function getDeps(): AppDeps {
   const env = getEnv();
 
   if (!env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required");
+  const redisRest = getRedisRest();
+  if (!redisRest.url || !redisRest.token) {
+    throw new Error(
+      "Upstash REST credentials are required (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN)",
+    );
   }
   if (!env.JWT_SECRET) throw new Error("JWT_SECRET is required");
 
   cachedDeps = {
     db: createDb(env.DATABASE_URL),
     redis: new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
+      url: redisRest.url,
+      token: redisRest.token,
     }),
     clerkSecretKey: env.CLERK_SECRET_KEY ?? null,
     jwtSecret: env.JWT_SECRET,

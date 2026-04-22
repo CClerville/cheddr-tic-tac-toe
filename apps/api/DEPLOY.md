@@ -37,9 +37,13 @@ In the Vercel dashboard, on the project Settings → Integrations:
    - `DATABASE_URL` (pooled, used at runtime)
    - `DATABASE_URL_UNPOOLED` (direct, used by drizzle-kit migrations)
 2. **Upstash for Redis** → "Connect" → create a new database. Vercel
-   injects:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
+   injects the marketplace aliases:
+   - `KV_REST_API_URL`
+   - `KV_REST_API_TOKEN`
+
+   The API reads either these aliases or the canonical
+   `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` names, so no
+   extra env-var plumbing is needed.
 3. **Clerk** → "Connect" → pick the application. Vercel injects:
    - `CLERK_SECRET_KEY`
    - `CLERK_PUBLISHABLE_KEY`

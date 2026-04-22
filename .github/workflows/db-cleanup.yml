@@ -1,0 +1,22 @@
+# Deletes the per-PR Neon preview branch when the PR is closed.
+
+name: DB preview cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  delete-preview-branch:
+    name: Delete Neon preview/pr-${{ github.event.pull_request.number }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neondatabase/delete-branch-action@v3
+        continue-on-error: true
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: preview/pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}

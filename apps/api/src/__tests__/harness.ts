@@ -2,10 +2,10 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { schema, type Database } from "@cheddr/db";
 
-import type { AppDeps } from "../types";
-import { mintAnonToken } from "../lib/anonToken";
-import { ensureUser } from "../middleware/auth";
-import { createFakeRedis, type FakeRedis } from "./fakeRedis";
+import type { AppDeps } from "../types.js";
+import { mintAnonToken } from "../lib/anonToken.js";
+import { ensureUser } from "../middleware/auth.js";
+import { createFakeRedis, type FakeRedis } from "./fakeRedis.js";
 
 /** Create a fresh PGlite-backed Drizzle DB with the project schema applied. */
 export async function createTestDb(): Promise<Database> {

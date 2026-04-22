@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useAuth } from "@clerk/clerk-expo";
 
 import { ensureAnonIdentity } from "@/lib/auth";
@@ -17,7 +17,10 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  // useLayoutEffect so the getter is registered before child passive effects
+  // (e.g. React Query on /profile) run — otherwise the first /user/me can go
+  // out with no bearer after anon was cleared post-merge.
+  useLayoutEffect(() => {
     if (!isLoaded) return;
     if (isSignedIn) {
       setClerkTokenGetter(() => getToken());

@@ -1,0 +1,146 @@
+# Production: versioned DB migrate → Vercel API deploy → EAS Update + EAS Build.
+# Vercel git deploy for `main` is disabled in apps/api/vercel.json so ordering is guaranteed.
+
+name: Deploy (production)
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      db: ${{ steps.filter.outputs.db }}
+      api: ${{ steps.filter.outputs.api }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            db:
+              - 'packages/db/**'
+            api:
+              - 'apps/api/**'
+              - 'packages/api-types/**'
+              - 'packages/db/**'
+              - 'packages/game-engine/**'
+              - 'pnpm-lock.yaml'
+            mobile:
+              - 'apps/mobile/**'
+              - 'packages/api-types/**'
+              - 'packages/game-engine/**'
+              - 'pnpm-lock.yaml'
+
+  migrate:
+    name: Migrate production (Drizzle)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations (unpooled / direct)
+        env:
+          DATABASE_URL: ${{ secrets.NEON_PRODUCTION_DATABASE_URL_UNPOOLED }}
+        run: pnpm --filter @cheddr/db db:migrate:ci
+
+  deploy-api:
+    name: Deploy API (Vercel)
+    runs-on: ubuntu-latest
+    needs: [changes, migrate]
+    if: |
+      always() &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.db == 'true')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace (API + deps)
+        run: pnpm turbo run build --filter=@cheddr/api
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull, build, deploy
+        working-directory: apps/api
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+  mobile-release:
+    name: EAS Update + build (main)
+    runs-on: ubuntu-latest
+    needs: [changes, migrate]
+    if: |
+      always() &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
+      needs.changes.outputs.mobile == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace deps
+        run: pnpm turbo run build --filter='./packages/*'
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: pnpm
+
+      - name: EAS Update + EAS Build
+        working-directory: apps/mobile
+        env:
+          EAS_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID }}
+        run: |
+          eas update --branch production --message "${{ github.sha }}" --non-interactive
+          eas build --platform all --profile preview --non-interactive --no-wait

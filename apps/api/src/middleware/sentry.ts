@@ -1,8 +1,8 @@
 import type { ErrorHandler, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { Sentry } from "../lib/sentry";
-import type { AppBindings } from "../types";
+import { Sentry } from "../lib/sentry.js";
+import type { AppBindings } from "../types.js";
 
 /**
  * Per-request scope: tag the Sentry scope with the request ID and the
