@@ -101,19 +101,6 @@ export async function authFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
-  const headers = new Headers(init.headers ?? {});
-  const bearer = await resolveBearer();
-  if (bearer && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${bearer}`);
-  }
-  if (!headers.has("Content-Type") && init.body) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (!headers.has("x-request-id")) {
-    // Hermes has no global `crypto`. expo-crypto is sync and Hermes-safe.
-    headers.set("x-request-id", Crypto.randomUUID());
-  }
-
   const url =
     typeof input === "string" && !input.startsWith("http")
       ? `${API_BASE_URL}${input.startsWith("/") ? input : `/${input}`}`
