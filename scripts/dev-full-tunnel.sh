@@ -7,9 +7,14 @@
 #   1. Starts the Hono API on :3005.
 #   2. Brings up a Cloudflare Quick Tunnel for the API and captures the URL.
 #   3. Brings up a Cloudflare Quick Tunnel for Metro on :8081.
-#   4. Boots Expo (Metro) with EXPO_PACKAGER_PROXY_URL and EXPO_PUBLIC_API_URL
-#      pointed at the two tunnels. EXPO_PUBLIC_API_URL is read from process.env
-#      at bundle time, so the on-device app calls the API through Cloudflare.
+#   4. Health-checks both tunnels via HTTPS before continuing.
+#   5. Patches apps/mobile/.env.local with EXPO_PUBLIC_API_URL.
+#   6. Boots Expo (Metro) with EXPO_PACKAGER_PROXY_URL so the on-device app
+#      loads the bundle through the Cloudflare tunnel.
+#   7. Prints its OWN QR code with the correct `exp+https://` deep link
+#      (Expo CLI's built-in QR is broken for HTTPS proxies — it generates
+#      `exp://hostname:443` which iOS/Expo Go interpret as plain HTTP and
+#      fail with "hostname could not be found").
 #
 # Cleans up all child processes on Ctrl-C or exit.
 #
@@ -105,6 +110,52 @@ extract_tunnel_url() {
   return 1
 }
 
+# Poll a tunnel URL until it returns any HTTP response (DNS + edge ready).
+# Cloudflare quick tunnels typically take 2-10s after the URL is announced
+# before they actually start serving traffic.
+wait_for_tunnel_ready() {
+  local url="$1"
+  local label="$2"
+  local timeout="${3:-45}"
+  local code=""
+  for i in $(seq 1 "$timeout"); do
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url/" 2>/dev/null || echo "000")"
+    # Anything that isn't 000 (curl failure) or 502/503/504 (Cloudflare not
+    # ready yet) means the edge is reachable. We don't care about the actual
+    # status from the origin here.
+    case "$code" in
+      000|502|503|504)
+        sleep 1
+        continue
+        ;;
+      *)
+        echo "$label tunnel reachable (HTTP $code after ${i}s)"
+        return 0
+        ;;
+    esac
+  done
+  echo "Timed out waiting for $label tunnel to become reachable (last code: $code)" >&2
+  return 1
+}
+
+print_qr() {
+  local url="$1"
+  # qrcode-terminal is a transitive dep hoisted at the repo root by pnpm.
+  # We deliberately do NOT use `{small: true}` — that half-block rendering
+  # confuses phone cameras (modules are too thin to focus on). The default
+  # full-size rendering uses 2-char-wide modules and scans reliably.
+  if ! ( cd "$REPO_ROOT" && node -e "
+    try {
+      require('qrcode-terminal').generate(process.argv[1]);
+    } catch (e) {
+      console.error('qrcode-terminal not available:', e.message);
+      process.exit(1);
+    }
+  " "$url" 2>/dev/null ); then
+    echo "(could not render QR — open the URL above manually in Expo Go)"
+  fi
+}
+
 echo "Starting API (pnpm dev:api)..."
 pnpm dev:api >"$API_LOG" 2>&1 &
 API_PID=$!
@@ -122,7 +173,12 @@ cloudflared tunnel --no-autoupdate --url http://localhost:3005 \
 API_TUNNEL_PID=$!
 
 API_TUNNEL_URL="$(extract_tunnel_url "$API_TUNNEL_LOG" "API")"
-echo "API tunnel: $API_TUNNEL_URL"
+echo "API tunnel: $API_TUNNEL_URL (waiting for it to become reachable...)"
+if ! wait_for_tunnel_ready "$API_TUNNEL_URL" "API"; then
+  echo "API tunnel never became reachable. Last 40 lines of cloudflared log:" >&2
+  tail -n 40 "$API_TUNNEL_LOG" >&2
+  exit 1
+fi
 
 echo "Starting Cloudflare tunnel for Metro (:8081)..."
 cloudflared tunnel --no-autoupdate --url http://localhost:8081 \
@@ -130,14 +186,45 @@ cloudflared tunnel --no-autoupdate --url http://localhost:8081 \
 METRO_TUNNEL_PID=$!
 
 METRO_TUNNEL_URL="$(extract_tunnel_url "$METRO_TUNNEL_LOG" "Metro")"
-echo "Metro tunnel: $METRO_TUNNEL_URL"
+echo "Metro tunnel: $METRO_TUNNEL_URL (waiting for it to become reachable...)"
+# Metro isn't running yet (we start it below) so we expect 502/503/504 from
+# the origin until then. We just want to confirm the edge resolves.
+for _ in $(seq 1 30); do
+  CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$METRO_TUNNEL_URL/" 2>/dev/null || echo "000")"
+  if [ "$CODE" != "000" ]; then
+    echo "Metro tunnel edge reachable (HTTP $CODE — origin not up yet, expected)"
+    break
+  fi
+  sleep 1
+done
+if [ "$CODE" = "000" ]; then
+  echo "Metro tunnel never became reachable. Last 40 lines of cloudflared log:" >&2
+  tail -n 40 "$METRO_TUNNEL_LOG" >&2
+  exit 1
+fi
+
+# The deep link Expo Go expects for an HTTPS-fronted Metro:
+#   exp+https://<host>     -> Expo Go fetches the manifest via HTTPS:443
+# NOT:
+#   exp://<host>:443       -> Expo Go tries HTTP and fails with
+#                             "hostname could not be found"
+# Expo CLI's built-in QR code generates the broken `exp://` form when
+# EXPO_PACKAGER_PROXY_URL is HTTPS, so we render our own QR below and tell
+# the user to ignore the one Metro prints.
+EXPO_GO_URL="exp+https://${METRO_TUNNEL_URL#https://}"
 
 echo ""
 echo "================================================================"
 echo " API URL (baked into bundle): $API_TUNNEL_URL"
-echo " Metro URL (Expo Go target):  $METRO_TUNNEL_URL"
-echo " Open in Expo Go:             exp+https://${METRO_TUNNEL_URL#https://}"
+echo " Metro URL (HTTPS):           $METRO_TUNNEL_URL"
+echo " Expo Go deep link:           $EXPO_GO_URL"
 echo "================================================================"
+echo ""
+echo "Scan this QR with the iOS Camera app (it will hand off to Expo Go),"
+echo "or open the deep link above directly. IGNORE the QR that Expo prints"
+echo "below — it generates a broken 'exp://...:443' link for HTTPS tunnels."
+echo ""
+print_qr "$EXPO_GO_URL"
 echo ""
 
 # Patch apps/mobile/.env.local so EXPO_PUBLIC_API_URL points at the API tunnel.

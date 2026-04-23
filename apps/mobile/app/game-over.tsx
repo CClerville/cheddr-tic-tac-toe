@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -89,8 +89,16 @@ export default function GameOverScreen() {
 
   return (
     <ScreenContainer variant="modal">
-      <View
-        className="flex-1 items-center justify-center px-6 py-8"
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: 24,
+          paddingVertical: 32,
+        }}
+        showsVerticalScrollIndicator={false}
         accessibilityLiveRegion="assertive"
       >
         <GlassPanel variant="modal" style={{ width: "100%", maxWidth: 400 }}>
@@ -168,7 +176,7 @@ export default function GameOverScreen() {
             </Animated.View>
           </View>
         </GlassPanel>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }

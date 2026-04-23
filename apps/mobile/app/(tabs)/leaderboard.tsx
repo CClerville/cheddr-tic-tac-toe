@@ -15,6 +15,10 @@ import { useAuth } from "@clerk/clerk-expo";
 import { PressableScale } from "@/components/PressableScale";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import {
+  Skeleton,
+  SkeletonGroup,
+} from "@/components/ui/Skeleton";
 import { useTabBarScroll } from "@/components/ui/TabBarScrollContext";
 import { apiGet } from "@/lib/api";
 import { useAuthBootstrap } from "@/providers/AuthBootstrap";
@@ -64,6 +68,10 @@ export default function LeaderboardScreen() {
   };
 
   const showRankBanner = isSignedIn && me.data && me.data.rank !== null;
+  const showRankBannerSkeleton =
+    isSignedIn &&
+    !showRankBanner &&
+    (me.isLoading || (!me.data && !me.error));
   const showQuietRetry = !top.isLoading && top.error;
 
   return (
@@ -86,13 +94,15 @@ export default function LeaderboardScreen() {
             </View>
           </GlassPanel>
         </View>
+      ) : showRankBannerSkeleton ? (
+        <View className="px-6 pb-3">
+          <RankBannerSkeleton />
+        </View>
       ) : null}
 
       <View className="flex-1 px-6">
         {top.isLoading ? (
-          <Text className="text-secondary dark:text-secondary-dark">
-            Loading…
-          </Text>
+          <LeaderboardListSkeleton bottomPad={bottomPad} />
         ) : (
           <GlassPanel variant="panel" style={{ flex: 1, marginBottom: 16 }}>
             <FlatList
@@ -132,6 +142,57 @@ export default function LeaderboardScreen() {
         )}
       </View>
     </ScreenContainer>
+  );
+}
+
+function RankBannerSkeleton() {
+  return (
+    <GlassPanel variant="panel">
+      <View className="px-4 py-3 gap-2">
+        <Skeleton width="88%" height={14} radius={4} />
+        <Skeleton width="55%" height={14} radius={4} />
+      </View>
+    </GlassPanel>
+  );
+}
+
+function LeaderboardRowSkeleton() {
+  return (
+    <View className="flex-row items-center py-3">
+      <View style={{ width: 40 }}>
+        <Skeleton width={28} height={16} radius={4} />
+      </View>
+      <View className="flex-1 pr-3">
+        <Skeleton width="72%" height={16} radius={4} />
+      </View>
+      <Skeleton width={40} height={18} radius={4} />
+    </View>
+  );
+}
+
+function LeaderboardListSkeleton({ bottomPad }: { bottomPad: number }) {
+  const ROWS = 10;
+  return (
+    <GlassPanel variant="panel" style={{ flex: 1, marginBottom: 16 }}>
+      <SkeletonGroup accessibilityLabel="Loading leaderboard">
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            paddingBottom: bottomPad,
+          }}
+        >
+          {Array.from({ length: ROWS }, (_, i) => (
+            <View key={i}>
+              {i > 0 ? (
+                <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-60" />
+              ) : null}
+              <LeaderboardRowSkeleton />
+            </View>
+          ))}
+        </View>
+      </SkeletonGroup>
+    </GlassPanel>
   );
 }
 

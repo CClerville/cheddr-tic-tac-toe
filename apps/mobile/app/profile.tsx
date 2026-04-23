@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth, useClerk } from "@clerk/clerk-expo";
 
 import { PressableScale } from "@/components/PressableScale";
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { API_BASE_URL, ApiError, apiGet } from "@/lib/api";
 import type { Profile } from "@cheddr/api-types";
 
@@ -34,9 +35,7 @@ export default function ProfileScreen() {
 
       <View className="flex-1 px-6 gap-6">
         {isLoading ? (
-          <Text className="text-secondary dark:text-secondary-dark">
-            Loading…
-          </Text>
+          <ProfileModalSkeleton />
         ) : error ? (
           <View className="gap-3">
             <Text className="text-red-500 font-semibold">
@@ -106,6 +105,25 @@ export default function ProfileScreen() {
         ) : null}
       </View>
     </SafeAreaView>
+  );
+}
+
+function ProfileModalSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="Loading profile">
+      <View className="items-center gap-2">
+        <Skeleton width="55%" height={32} radius={8} />
+        <Skeleton width="36%" height={18} radius={6} />
+      </View>
+      <View className="bg-elevated dark:bg-elevated-dark rounded-2xl p-4 gap-3">
+        {Array.from({ length: 5 }, (_, i) => (
+          <View key={i} className="flex-row justify-between items-center">
+            <Skeleton width={72} height={18} radius={4} />
+            <Skeleton width={44} height={18} radius={4} />
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
   );
 }
 

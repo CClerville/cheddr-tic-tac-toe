@@ -90,9 +90,11 @@ function RankedGameScreen({
     personality,
   });
   const [hintCell, setHintCell] = useState<Position | null>(null);
+  const [hintReasoning, setHintReasoning] = useState("");
 
   useEffect(() => {
     setHintCell(null);
+    setHintReasoning("");
   }, [ranked.sessionId]);
 
   const moveFingerprint = useMemo(
@@ -130,7 +132,10 @@ function RankedGameScreen({
         <HintButton
           sessionId={ranked.sessionId}
           canHint={canHint}
-          onSuggest={setHintCell}
+          onSuggest={(pos, reasoning) => {
+            setHintCell(pos);
+            setHintReasoning(reasoning);
+          }}
         />
       </View>
       <Board
@@ -138,11 +143,17 @@ function RankedGameScreen({
         result={ranked.gameState.result}
         onCellPress={(pos) => {
           setHintCell(null);
+          setHintReasoning("");
           void ranked.playMove(pos);
         }}
         disabled={ranked.phase !== "player_turn" || ranked.loading}
         aiThinking={ranked.phase === "ai_thinking"}
         hintCell={hintCell}
+        hintReasoning={hintReasoning}
+        onDismissHint={() => {
+          setHintCell(null);
+          setHintReasoning("");
+        }}
       />
       <CommentaryBubble
         sessionId={ranked.sessionId}

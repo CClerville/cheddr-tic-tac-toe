@@ -19,6 +19,11 @@ import { PressableScale } from "@/components/PressableScale";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { GlassPanel } from "@/components/ui/GlassPanel";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonGroup,
+} from "@/components/ui/Skeleton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { useTabBarScroll } from "@/components/ui/TabBarScrollContext";
@@ -313,16 +318,91 @@ export default function ProfileScreen() {
   );
 }
 
+const WIN_RATE_RING_SIZE = 120;
+
 function ProfileSkeleton() {
   return (
-    <View className="gap-4">
+    <SkeletonGroup accessibilityLabel="Loading profile">
+      <View className="items-center gap-3">
+        <SkeletonCircle size={88} />
+        <Skeleton
+          width="60%"
+          height={28}
+          radius={8}
+          style={{ alignSelf: "center" }}
+        />
+        <Skeleton
+          width="32%"
+          height={14}
+          radius={6}
+          style={{ alignSelf: "center" }}
+        />
+        <Skeleton
+          width={88}
+          height={32}
+          radius={999}
+          style={{ alignSelf: "center" }}
+        />
+        <Skeleton
+          width="100%"
+          height={50}
+          radius={999}
+          style={{ alignSelf: "stretch", marginTop: 4 }}
+        />
+      </View>
+
       <View
-        className="rounded-full self-center bg-glass dark:bg-glass-dark"
-        style={{ width: 88, height: 88 }}
-      />
-      <View className="h-8 rounded-xl bg-glass dark:bg-glass-dark w-3/5 self-center" />
-      <View className="h-24 rounded-2xl bg-glass dark:bg-glass-dark" />
-    </View>
+        className="flex-row rounded-2xl p-1 bg-glass dark:bg-glass-dark border border-glassBorder dark:border-glassBorder-dark"
+        style={{ gap: 6, minHeight: 52, paddingVertical: 4, paddingHorizontal: 4 }}
+      >
+        {([0, 1, 2] as const).map((i) => (
+          <View
+            key={i}
+            className="flex-1"
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <Skeleton height={36} radius={12} />
+          </View>
+        ))}
+      </View>
+
+      <View className="gap-6 mt-1">
+        <View className="flex-row gap-3 justify-between">
+          {([0, 1, 2] as const).map((i) => (
+            <GlassPanel key={i} variant="panel" style={{ flex: 1 }}>
+              <View className="py-4 px-2 items-center gap-2">
+                <Skeleton width={36} height={26} radius={6} />
+                <Skeleton width={44} height={10} radius={4} />
+              </View>
+            </GlassPanel>
+          ))}
+        </View>
+        <Skeleton
+          width="50%"
+          height={10}
+          radius={4}
+          style={{ alignSelf: "center" }}
+        />
+
+        <GlassPanel variant="panel">
+          <View className="p-6 items-center">
+            <Skeleton
+              width={140}
+              height={12}
+              radius={4}
+              style={{ marginBottom: 16 }}
+            />
+            <SkeletonCircle size={WIN_RATE_RING_SIZE} />
+            <Skeleton
+              width={120}
+              height={12}
+              radius={4}
+              style={{ marginTop: 16 }}
+            />
+          </View>
+        </GlassPanel>
+      </View>
+    </SkeletonGroup>
   );
 }
 

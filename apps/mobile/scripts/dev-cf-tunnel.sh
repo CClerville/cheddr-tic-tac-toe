@@ -5,11 +5,18 @@
 # is currently rate-limited (https://github.com/expo/expo/issues/43335).
 # Cloudflare Quick Tunnels are free, account-less, and reliable.
 #
+# Why we render our own QR code: Expo CLI's built-in QR generator builds
+# `exp://<host>:443` when EXPO_PACKAGER_PROXY_URL is HTTPS — that link makes
+# Expo Go attempt plain HTTP and fail with "hostname could not be found".
+# The correct deep link is `exp+https://<host>`.
+#
 # Requires: cloudflared (`brew install cloudflared`).
 #
 # Usage: pnpm dev:cf-tunnel
 
 set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 if ! command -v cloudflared >/dev/null 2>&1; then
   echo "cloudflared not found. Install it with: brew install cloudflared" >&2
@@ -47,9 +54,42 @@ if [ -z "$TUNNEL_URL" ]; then
   exit 1
 fi
 
+# Confirm the edge is reachable before we hand the URL to the user.
+echo "Tunnel URL: $TUNNEL_URL (waiting for the edge to come online...)"
+for _ in $(seq 1 30); do
+  CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$TUNNEL_URL/" 2>/dev/null || echo "000")"
+  if [ "$CODE" != "000" ]; then
+    echo "Edge reachable (HTTP $CODE)"
+    break
+  fi
+  sleep 1
+done
+if [ "$CODE" = "000" ]; then
+  echo "Tunnel never became reachable. Last 40 lines of log:" >&2
+  tail -n 40 "$LOG_FILE" >&2
+  exit 1
+fi
+
+EXPO_GO_URL="exp+https://${TUNNEL_URL#https://}"
+
 echo ""
-echo "Cloudflare tunnel ready: $TUNNEL_URL"
-echo "Open this in Expo Go: exp+https://${TUNNEL_URL#https://}"
+echo "================================================================"
+echo " Cloudflare tunnel: $TUNNEL_URL"
+echo " Expo Go deep link: $EXPO_GO_URL"
+echo "================================================================"
+echo ""
+echo "Scan this QR with the iOS Camera app (it will hand off to Expo Go)."
+echo "IGNORE the QR Expo prints below — it builds a broken 'exp://...:443'"
+echo "link for HTTPS tunnels."
+echo ""
+( cd "$REPO_ROOT" && node -e "
+  try {
+    require('qrcode-terminal').generate(process.argv[1]);
+  } catch (e) {
+    console.error('qrcode-terminal not available:', e.message);
+    process.exit(1);
+  }
+" "$EXPO_GO_URL" 2>/dev/null ) || echo "(could not render QR — open the deep link above manually in Expo Go)"
 echo ""
 
 EXPO_PACKAGER_PROXY_URL="$TUNNEL_URL" \
