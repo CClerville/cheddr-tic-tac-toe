@@ -80,13 +80,14 @@ describe("POST /game/start", () => {
       currentPlayer: string;
       difficulty: string;
       ranked: boolean;
+      personality: string;
     };
     expect(body.sessionId).toMatch(/[a-f0-9-]{36}/);
     expect(body.board).toHaveLength(9);
     expect(body.currentPlayer).toBe("X");
     expect(body.difficulty).toBe("expert");
     expect(body.ranked).toBe(true);
-    expect((body as { personality: string }).personality).toBe("coach");
+    expect(body.personality).toBe("coach");
   });
 });
 
@@ -153,12 +154,13 @@ describe("game terminal persistence", () => {
 
     // Force 3-in-a-row for X by playing 0, 1, 2 on the top row.
     const positions = [0, 1, 2];
-    let lastBody: {
+    type MoveBody = {
       terminal: boolean;
       outcome: string | null;
       eloDelta: number | null;
       state: { board: (string | null)[] };
-    } | null = null;
+    };
+    let lastBody: MoveBody | null = null;
 
     for (const p of positions) {
       // The AI may already be occupying one of these. If so, pick the
@@ -169,7 +171,7 @@ describe("game terminal persistence", () => {
         // Cell occupied by AI; try a different one to make progress.
         continue;
       }
-      lastBody = (await res.json()) as typeof lastBody;
+      lastBody = (await res.json()) as MoveBody;
       if (lastBody && lastBody.terminal) break;
     }
 
@@ -182,7 +184,7 @@ describe("game terminal persistence", () => {
       if (empty === -1) break;
       const res = await move(app, token, sessionId, empty);
       if (res.status === 200) {
-        lastBody = (await res.json()) as typeof lastBody;
+        lastBody = (await res.json()) as MoveBody;
       } else {
         // try next cell on next iteration
       }
