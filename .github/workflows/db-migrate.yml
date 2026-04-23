@@ -22,11 +22,11 @@ jobs:
     outputs:
       db: ${{ steps.filter.outputs.db }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
@@ -38,11 +38,11 @@ jobs:
     name: drizzle-kit check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
@@ -62,11 +62,11 @@ jobs:
     needs: [changes, validate]
     if: needs.changes.outputs.db == 'true'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
@@ -76,7 +76,7 @@ jobs:
 
       - name: Create Neon branch
         id: neon
-        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6
+        uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           branch_name: preview/pr-${{ github.event.pull_request.number }}
@@ -88,7 +88,7 @@ jobs:
         run: pnpm --filter @cheddr/db db:migrate:ci
 
       - name: Comment on PR
-        uses: actions/github-script@60a0d83004c34cf0eec04e40dfb0b8facb87ee0f # v7.0.1
+        uses: actions/github-script@v7
         with:
           script: |
             const host = `${{ steps.neon.outputs.db_host }}`;
