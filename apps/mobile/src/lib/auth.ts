@@ -1,5 +1,5 @@
-import * as Crypto from "expo-crypto";
 import type { AnonRequest, AnonResponse, MeResponse } from "@cheddr/api-types";
+import * as Crypto from "expo-crypto";
 
 import { apiGet, apiPost } from "./api";
 import { KEYS, storage } from "./secureStore";

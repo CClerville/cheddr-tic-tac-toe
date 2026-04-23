@@ -23,23 +23,21 @@ const CLERK_PUBLISHABLE_KEY =
   "";
 
 function ThemedStack() {
-  const { resolved, palette } = useTheme();
+  const { resolved } = useTheme();
   return (
     <>
       <StatusBar style={resolved === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: palette.surface },
           animation: "slide_from_right",
+          animationDuration: 220,
+          freezeOnBlur: true,
         }}
       >
-        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="setup" />
         <Stack.Screen name="game" />
-        <Stack.Screen name="stats" />
-        <Stack.Screen name="leaderboard" />
-        <Stack.Screen name="profile" />
         <Stack.Screen name="sign-in" options={{ presentation: "modal" }} />
         <Stack.Screen
           name="game-over"

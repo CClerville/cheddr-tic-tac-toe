@@ -23,6 +23,14 @@ export const users = pgTable("users", {
   id: text("id").primaryKey(),
   kind: text("kind").$type<UserKind>().notNull(),
   username: text("username").unique(),
+  /** Optional human-readable name shown above the @username on the profile. */
+  displayName: text("display_name"),
+  /**
+   * Hex color (e.g. `#F59E0B`) used as the avatar background when the user
+   * has not uploaded an image. Stored as text so we are not locked into a
+   * fixed palette — application-layer validation enforces `#RRGGBB`.
+   */
+  avatarColor: text("avatar_color"),
   elo: integer("elo").notNull().default(1000),
   gamesPlayed: integer("games_played").notNull().default(0),
   wins: integer("wins").notNull().default(0),

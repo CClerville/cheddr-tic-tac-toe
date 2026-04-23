@@ -33,26 +33,69 @@ async function getAnonToken(): Promise<string | null> {
 }
 
 /**
+ * Lazy import to break the circular dep between `api.ts` and `auth.ts`
+ * (auth.ts uses apiPost; we use ensureAnonIdentity here as a fallback).
+ *
+ * Singleton in-flight promise so parallel requests (e.g. leaderboard's
+ * two queries firing at once) coalesce into a single mint POST.
+ */
+let inflightMint: Promise<string | null> | null = null;
+async function mintAnonInline(): Promise<string | null> {
+  if (inflightMint) return inflightMint;
+  inflightMint = (async () => {
+    try {
+      const { ensureAnonIdentity } = await import("./auth");
+      const id = await ensureAnonIdentity();
+      return id?.token ?? null;
+    } catch {
+      return null;
+    } finally {
+      inflightMint = null;
+    }
+  })();
+  return inflightMint;
+}
+
+type ResolvedBearer = {
+  token: string | null;
+  source: "clerk" | "anon" | "none";
+};
+
+/**
  * Resolve the bearer token used for an outgoing request:
  *   - Clerk session token if signed in (preferred)
- *   - Anon device token otherwise
+ *   - Cached anon device token
+ *   - Freshly-minted anon token as a last resort (self-heals races where
+ *     a request fires before AuthBootstrap finishes the initial mint)
+ *
+ * `skipMint` is set when we're already calling `/auth/anon` to avoid
+ * infinite recursion.
  */
-async function resolveBearer(): Promise<string | null> {
+async function resolveBearer(skipMint: boolean): Promise<ResolvedBearer> {
   if (getClerkToken) {
     try {
       const t = await getClerkToken();
-      if (t) return t;
+      if (t) return { token: t, source: "clerk" };
     } catch {
       // fall through to anon
     }
   }
-  return await getAnonToken();
+  const cached = await getAnonToken();
+  if (cached) return { token: cached, source: "anon" };
+  if (skipMint) return { token: null, source: "none" };
+  const minted = await mintAnonInline();
+  return { token: minted, source: minted ? "anon" : "none" };
 }
 
 /**
  * `fetch` drop-in that injects `Authorization: Bearer <token>` and the
- * mobile-side request id (so server logs can be correlated). Other
- * options pass through unchanged.
+ * mobile-side request id (so server logs can be correlated).
+ *
+ * Self-healing on auth: if no token is available we mint an anon
+ * identity inline before sending. If the server still returns 401 we
+ * mint a fresh anon token (the cached one is likely expired) and retry
+ * the request once. This keeps the UI usable even if AuthBootstrap's
+ * initial mint races with the first query.
  */
 export async function authFetch(
   input: RequestInfo | URL,
@@ -76,7 +119,38 @@ export async function authFetch(
       ? `${API_BASE_URL}${input.startsWith("/") ? input : `/${input}`}`
       : input;
 
-  return fetch(url, { ...init, headers });
+  const isAuthAnon = typeof url === "string" && url.endsWith("/auth/anon");
+
+  const send = async (bearer: string | null): Promise<Response> => {
+    const headers = new Headers(init.headers ?? {});
+    if (bearer && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${bearer}`);
+    }
+    if (!headers.has("Content-Type") && init.body) {
+      headers.set("Content-Type", "application/json");
+    }
+    if (!headers.has("x-request-id")) {
+      // Hermes has no global `crypto`. expo-crypto is sync and Hermes-safe.
+      headers.set("x-request-id", Crypto.randomUUID());
+    }
+    return fetch(url, { ...init, headers });
+  };
+
+  const bearer = await resolveBearer(isAuthAnon);
+  const res = await send(bearer.token);
+
+  // One-shot retry on 401 with a fresh anon token. Skip when we ARE the
+  // /auth/anon call (would loop) or when the failed request used a Clerk
+  // token (the server rejection is meaningful and re-minting anon won't
+  // help — the caller needs to handle re-auth).
+  if (res.status === 401 && !isAuthAnon && bearer.source !== "clerk") {
+    const fresh = await mintAnonInline();
+    if (fresh && fresh !== bearer.token) {
+      return await send(fresh);
+    }
+  }
+
+  return res;
 }
 
 /**
@@ -98,6 +172,18 @@ export async function apiPost<T, B = unknown>(
 ): Promise<T> {
   const res = await authFetch(path, {
     method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as T;
+}
+
+export async function apiPatch<T, B = unknown>(
+  path: string,
+  body?: B,
+): Promise<T> {
+  const res = await authFetch(path, {
+    method: "PATCH",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw await toApiError(res);

@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AiThinkingPulse } from "@/components/AiThinkingPulse";
 import {
   GAME_SCREEN_HORIZONTAL_PADDING_TOTAL_PT,
   GAME_SCREEN_LAYOUT_RESERVE_Y_PT,
 } from "@/constants/gameScreenLayout";
+import type { Player, Position } from "@cheddr/game-engine";
+
 import { BoardCanvas } from "./board/BoardCanvas";
 import {
   ALL_POSITIONS,
@@ -13,25 +16,34 @@ import {
   getCellRect,
 } from "./board/boardGeometry";
 import { CellTouch } from "./CellTouch";
-import type {
-  Board as BoardType,
-  GameResult,
-  Position,
-} from "@cheddr/game-engine";
+import type { Board as BoardType, GameResult } from "@cheddr/game-engine";
 
 interface BoardProps {
   board: BoardType;
   result: GameResult;
   onCellPress: (position: Position) => void;
   disabled: boolean;
+  currentPlayer: Player;
 }
 
 const MIN_BOARD_SIDE_PT = 160;
 const MAX_BOARD_SIDE_PT = 320;
 
-export function Board({ board, result, onCellPress, disabled }: BoardProps) {
+export function Board({
+  board,
+  result,
+  onCellPress,
+  disabled,
+  currentPlayer,
+}: BoardProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [pressedCell, setPressedCell] = useState<Position | null>(null);
+
+  const onPressStateChange = useCallback((pos: Position | null) => {
+    setPressedCell(pos);
+  }, []);
+
   const usableHeight =
     windowHeight -
     insets.top -
@@ -43,8 +55,11 @@ export function Board({ board, result, onCellPress, disabled }: BoardProps) {
 
   const geometry = useMemo(() => createBoardGeometry(side), [side]);
 
+  const showAiPulse = disabled && currentPlayer === "O";
+
   return (
     <View className="self-center" style={{ width: side, height: side }}>
+      {showAiPulse ? <AiThinkingPulse active size={side} /> : null}
       <View
         pointerEvents="none"
         style={{
@@ -55,7 +70,12 @@ export function Board({ board, result, onCellPress, disabled }: BoardProps) {
           bottom: 0,
         }}
       >
-        <BoardCanvas board={board} result={result} size={side} />
+        <BoardCanvas
+          board={board}
+          result={result}
+          size={side}
+          pressedCell={pressedCell}
+        />
       </View>
       <View
         accessible={false}
@@ -78,6 +98,7 @@ export function Board({ board, result, onCellPress, disabled }: BoardProps) {
               onPress={onCellPress}
               disabled={disabled}
               rect={rect}
+              onPressStateChange={onPressStateChange}
             />
           );
         })}
