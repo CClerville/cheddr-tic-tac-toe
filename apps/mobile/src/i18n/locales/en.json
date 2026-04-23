@@ -1,0 +1,54 @@
+{
+  "common": {
+    "retry": "Retry",
+    "loading": "Loading…",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "back": "Back",
+    "home": "Home"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "tryAgain": "Try again",
+    "dismiss": "Dismiss",
+    "requestId": "Request ID: {{id}}",
+    "boundaryRestart": "Restart"
+  },
+  "profile": {
+    "tabs": {
+      "overview": "Overview",
+      "byDifficulty": "By Difficulty",
+      "byPersonality": "By Personality"
+    },
+    "loadError": "Couldn't load profile.",
+    "fallbackName": "Player",
+    "fallbackHandle": "@player",
+    "winRateLabel": "Win rate (ranked)",
+    "gamesPlayed": "{{count}} games played",
+    "editProfile": "Edit profile",
+    "signOut": "Sign out",
+    "signOutTitle": "Sign out?",
+    "signOutBody": "You can sign back in any time to keep climbing the leaderboard.",
+    "appVersion": "App version {{version}}",
+    "theme": "Theme",
+    "version": "Version {{version}}"
+  },
+  "gameOver": {
+    "win": {
+      "title": "You win!",
+      "subtitle": "Cheddar completed three-in-a-row."
+    },
+    "loss": {
+      "title": "You lose",
+      "subtitle": "You completed three-in-a-row."
+    },
+    "draw": {
+      "title": "Draw",
+      "subtitle": "Nobody fell into a three-in-a-row trap."
+    },
+    "difficultyLabel": "{{difficulty}} difficulty",
+    "rematch": "Rematch",
+    "changeDifficulty": "Change Difficulty",
+    "rematchHint": "Starts a new game at the same difficulty"
+  }
+}
