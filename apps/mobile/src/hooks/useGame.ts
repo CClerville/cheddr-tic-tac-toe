@@ -142,6 +142,7 @@ export function useGame(options: UseGameOptions | Difficulty = {}) {
         setGameState(next);
         setPhase(derivePhase(next));
       } catch {
+        haptics.illegalTap();
         // Ignore: invalid move (cell occupied or game over). The UI guards
         // against this via the `disabled` prop, but we defensively swallow
         // here so a stale tap during a phase transition cannot crash.

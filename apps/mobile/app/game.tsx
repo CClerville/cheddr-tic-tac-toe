@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Board } from "@/components/Board";
 import { GameStatus } from "@/components/GameStatus";
+import { GlassPanel } from "@/components/ui/GlassPanel";
+import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { BackButton, ScreenHeader } from "@/components/ui/ScreenHeader";
 import { GAME_SCREEN_HORIZONTAL_INSET_PT } from "@/constants/gameScreenLayout";
 import { useGame } from "@/hooks/useGame";
 import { useRankedGame } from "@/hooks/useRankedGame";
@@ -57,6 +59,7 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
         result={gameState.result}
         onCellPress={playMove}
         disabled={phase !== "player_turn"}
+        currentPlayer={gameState.currentPlayer}
       />
     </Shell>
   );
@@ -87,6 +90,7 @@ function RankedGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffi
         result={ranked.gameState.result}
         onCellPress={ranked.playMove}
         disabled={ranked.phase !== "player_turn" || ranked.loading}
+        currentPlayer={ranked.gameState.currentPlayer}
       />
     </Shell>
   );
@@ -102,31 +106,38 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Pressable
-          onPress={() => router.replace("/")}
-          accessibilityRole="button"
-          accessibilityLabel="Quit"
-          className="px-3 py-2"
-        >
-          <Text className="text-base text-accent dark:text-accent-dark">
-            Quit
-          </Text>
-        </Pressable>
-        <Text className="text-base font-semibold text-primary dark:text-primary-dark capitalize">
-          {title}
-        </Text>
-        <Pressable
-          onPress={onReset}
-          accessibilityRole="button"
-          accessibilityLabel="Reset game"
-          className="px-3 py-2"
-        >
-          <Text className="text-base text-accent dark:text-accent-dark">
-            Reset
-          </Text>
-        </Pressable>
+    <ScreenContainer>
+      <View className="px-4 pt-2 pb-2">
+        <GlassPanel variant="panel" style={{ width: "100%" }}>
+          <ScreenHeader
+            title={title}
+            titleClassName="capitalize"
+            leading={
+              <BackButton
+                label="Quit"
+                onPress={() => router.replace("/")}
+              />
+            }
+            trailing={
+              <Pressable
+                onPress={onReset}
+                accessibilityRole="button"
+                accessibilityLabel="Reset game"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{
+                  minWidth: 44,
+                  minHeight: 44,
+                  justifyContent: "center",
+                  paddingHorizontal: 8,
+                }}
+              >
+                <Text className="text-base text-accent dark:text-accent-dark">
+                  Reset
+                </Text>
+              </Pressable>
+            }
+          />
+        </GlassPanel>
       </View>
 
       <View
@@ -148,7 +159,7 @@ function Shell({
           {children}
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
 

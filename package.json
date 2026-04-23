@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --ui=tui --filter=@cheddr/api --filter=@cheddr/mobile",
+    "dev:api": "pnpm --filter @cheddr/api dev",
     "dev:mobile": "pnpm --filter @cheddr/mobile dev",
     "dev:ios": "pnpm --filter @cheddr/mobile dev:ios",
     "lint": "turbo run lint",

@@ -1,4 +1,5 @@
 import type { AnonRequest, AnonResponse, MeResponse } from "@cheddr/api-types";
+import * as Crypto from "expo-crypto";
 
 import { apiGet, apiPost } from "./api";
 import { KEYS, storage } from "./secureStore";
@@ -62,7 +63,8 @@ export async function clearAnon(): Promise<void> {
 async function ensureDeviceId(): Promise<string> {
   const existing = await storage.getItem(KEYS.DEVICE_ID);
   if (existing) return existing;
-  const id = crypto.randomUUID();
+  // Hermes has no global `crypto`. expo-crypto is sync and Hermes-safe.
+  const id = Crypto.randomUUID();
   await storage.setItem(KEYS.DEVICE_ID, id);
   return id;
 }

@@ -1,4 +1,8 @@
-import { View, Text, Pressable } from "react-native";
+import { Text, View } from "react-native";
+
+import { NeumorphicButton } from "@/components/ui/NeumorphicButton";
+import { haptics } from "@/lib/haptics";
+import { useTheme } from "@/theme/ThemeProvider";
 import type { Difficulty } from "@cheddr/game-engine";
 
 interface DifficultyPickerProps {
@@ -13,33 +17,42 @@ const DIFFICULTIES: { value: Difficulty; label: string }[] = [
 ];
 
 export function DifficultyPicker({ current, onChange }: DifficultyPickerProps) {
+  const { palette } = useTheme();
+
   return (
     <View className="flex-row gap-2" accessibilityRole="radiogroup">
       {DIFFICULTIES.map(({ value, label }) => {
         const selected = current === value;
         return (
-          <Pressable
+          <NeumorphicButton
             key={value}
-            onPress={() => onChange(value)}
+            onPress={() => {
+              haptics.selectionChange();
+              onChange(value);
+            }}
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             accessibilityLabel={label}
-            className={`px-4 py-2 rounded-full ${
+            className="px-4 py-2.5 rounded-full bg-subtle dark:bg-subtle-dark items-center justify-center"
+            style={
               selected
-                ? "bg-accent dark:bg-accent-dark"
-                : "bg-subtle dark:bg-subtle-dark"
-            }`}
+                ? {
+                    borderWidth: 2,
+                    borderColor: palette.playerX,
+                  }
+                : { borderWidth: 2, borderColor: "transparent" }
+            }
           >
             <Text
-              className={`text-sm font-medium ${
+              className={`text-sm font-semibold ${
                 selected
-                  ? "text-accent-contrast dark:text-accent-contrast-dark"
+                  ? "text-primary dark:text-primary-dark"
                   : "text-secondary dark:text-secondary-dark"
               }`}
             >
               {label}
             </Text>
-          </Pressable>
+          </NeumorphicButton>
         );
       })}
     </View>

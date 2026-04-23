@@ -7,6 +7,8 @@ import {
   type GamesListResponse,
   GamesListQuerySchema,
   type Profile,
+  ProfileUpdateRequestSchema,
+  type ProfileUpdateResponse,
   SyncAnonRequestSchema,
   type SyncAnonResponse,
 } from "@cheddr/api-types";
@@ -16,6 +18,39 @@ import { auth, ensureUser } from "../middleware/auth.js";
 import { verifyAnonToken } from "../lib/anonToken.js";
 import { syncAnonToClerk } from "../lib/syncAnon.js";
 import type { AppBindings, AppDeps } from "../types.js";
+
+type UserRow = typeof schema.users.$inferSelect;
+
+/** Project a `users` row into the public `Profile` wire type. */
+function toProfile(row: UserRow): Profile {
+  return {
+    id: row.id,
+    kind: row.kind,
+    username: row.username,
+    displayName: row.displayName,
+    avatarColor: row.avatarColor,
+    elo: row.elo,
+    gamesPlayed: row.gamesPlayed,
+    wins: row.wins,
+    losses: row.losses,
+    draws: row.draws,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Postgres surfaces unique-constraint violations as SQLSTATE 23505. The
+ * serverless driver re-throws the original error with `.code` preserved,
+ * but we also fall back to a substring match in case a wrapper rewrites
+ * the shape.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  if (code === "23505") return true;
+  const msg = (err as { message?: unknown }).message;
+  return typeof msg === "string" && msg.includes("users_username_unique");
+}
 
 export function createUserRoutes(deps: AppDeps) {
   const { db, redis, clerkSecretKey, jwtSecret } = deps;
@@ -34,19 +69,64 @@ export function createUserRoutes(deps: AppDeps) {
       if (!row) {
         throw new HTTPException(404, { message: "User not found" });
       }
-      const body: Profile = {
-        id: row.id,
-        kind: row.kind,
-        username: row.username,
-        elo: row.elo,
-        gamesPlayed: row.gamesPlayed,
-        wins: row.wins,
-        losses: row.losses,
-        draws: row.draws,
-        createdAt: row.createdAt.toISOString(),
-      };
-      return c.json(body);
+      return c.json(toProfile(row));
     })
+
+    .patch(
+      "/me",
+      zValidator("json", ProfileUpdateRequestSchema),
+      async (c) => {
+        const identity = c.get("identity");
+
+        // Anon identities can play and rank locally, but profile editing
+        // (which may surface on the leaderboard) is gated to Clerk users.
+        if (identity.kind !== "clerk") {
+          throw new HTTPException(403, {
+            message: "Sign in to edit your profile",
+          });
+        }
+
+        const update = c.req.valid("json");
+
+        // Build the partial-update payload. We treat `undefined` as "leave
+        // alone" and `null` (only valid for displayName/avatarColor) as
+        // "clear". Drizzle's update() ignores undefined keys cleanly.
+        const patch: Partial<{
+          username: string;
+          displayName: string | null;
+          avatarColor: string | null;
+        }> = {};
+        if (update.username !== undefined) patch.username = update.username;
+        if (update.displayName !== undefined)
+          patch.displayName = update.displayName;
+        if (update.avatarColor !== undefined)
+          patch.avatarColor = update.avatarColor;
+
+        let updated: UserRow | undefined;
+        try {
+          const rows = await db
+            .update(schema.users)
+            .set(patch)
+            .where(eq(schema.users.id, identity.id))
+            .returning();
+          updated = rows[0];
+        } catch (err) {
+          if (isUniqueViolation(err)) {
+            throw new HTTPException(409, {
+              message: "That username is already taken",
+            });
+          }
+          throw err;
+        }
+
+        if (!updated) {
+          throw new HTTPException(404, { message: "User not found" });
+        }
+
+        const body: ProfileUpdateResponse = { profile: toProfile(updated) };
+        return c.json(body);
+      },
+    )
 
     .get("/games", zValidator("query", GamesListQuerySchema), async (c) => {
       const identity = c.get("identity");
@@ -124,17 +204,7 @@ export function createUserRoutes(deps: AppDeps) {
       }
       const body: SyncAnonResponse = {
         mergedGames: result.mergedGames,
-        profile: {
-          id: row.id,
-          kind: row.kind,
-          username: row.username,
-          elo: row.elo,
-          gamesPlayed: row.gamesPlayed,
-          wins: row.wins,
-          losses: row.losses,
-          draws: row.draws,
-          createdAt: row.createdAt.toISOString(),
-        },
+        profile: toProfile(row),
       };
       return c.json(body);
     });

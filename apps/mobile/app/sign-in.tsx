@@ -7,7 +7,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import {
   isClerkAPIResponseError,
   useAuth,
@@ -258,7 +259,7 @@ export default function SignInScreen() {
         : "Check your email";
 
   return (
-    <SafeAreaView className="flex-1 bg-surface dark:bg-surface-dark">
+    <ScreenContainer variant="modal">
       <View className="flex-row items-center justify-between px-4 py-3">
         <Pressable onPress={() => router.back()} className="px-3 py-2">
           <Text className="text-base text-accent dark:text-accent-dark">
@@ -439,6 +440,6 @@ export default function SignInScreen() {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 }
