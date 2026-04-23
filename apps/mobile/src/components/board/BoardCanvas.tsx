@@ -37,6 +37,8 @@ interface BoardCanvasProps {
   size: number;
   /** Cell currently pressed (visual depth); null when none. */
   pressedCell: Position | null;
+  /** Optional AI hint ring on an empty cell. */
+  hintCell?: Position | null;
 }
 
 function findLossTriple(
@@ -55,6 +57,36 @@ function findLossTriple(
 
 function cellCornerRadius(geometry: BoardGeometry): number {
   return geometry.cellSize * 0.12;
+}
+
+function HintRing({
+  geometry,
+  position,
+  color,
+}: {
+  geometry: BoardGeometry;
+  position: Position;
+  color: string;
+}) {
+  const rect = getCellRect(geometry, position);
+  const inset = geometry.cellSize * 0.02;
+  const x = rect.x + inset;
+  const y = rect.y + inset;
+  const w = rect.width - inset * 2;
+  const h = rect.height - inset * 2;
+  const r = cellCornerRadius(geometry);
+  return (
+    <RoundedRect
+      x={x}
+      y={y}
+      width={w}
+      height={h}
+      r={r}
+      color={color}
+      style="stroke"
+      strokeWidth={Math.max(3, geometry.cellSize * 0.05)}
+    />
+  );
 }
 
 interface NeumorphicCellProps {
@@ -344,6 +376,7 @@ export function BoardCanvas({
   result,
   size,
   pressedCell,
+  hintCell = null,
 }: BoardCanvasProps) {
   const { palette, resolved } = useTheme();
   const geometry = createBoardGeometry(size);
@@ -375,6 +408,16 @@ export function BoardCanvas({
             />
           ))}
         </Group>
+
+        {hintCell !== null &&
+        board[hintCell] === null &&
+        result.status === "in_progress" ? (
+          <HintRing
+            geometry={geometry}
+            position={hintCell}
+            color={palette.accent}
+          />
+        ) : null}
 
         {ALL_POSITIONS.map((pos) => {
           const value = board[pos];

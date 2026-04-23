@@ -1,6 +1,9 @@
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type { Identity } from "@cheddr/api-types";
 import type { Database } from "@cheddr/db";
 import type { Redis } from "@upstash/redis";
+
+import type { AiLimiters } from "./lib/ai/rateLimit.js";
 
 /**
  * Hono context bindings. `Variables` are values set by middleware (e.g.
@@ -26,4 +29,13 @@ export interface AppDeps {
   redis: Redis;
   clerkSecretKey: string | null;
   jwtSecret: string;
+  /**
+   * Optional in-memory rate limiters (tests). When omitted, Upstash
+   * `Ratelimit` is constructed from `redis`.
+   */
+  aiLimiters?: AiLimiters;
+  /**
+   * Override the default Gateway language model (tests).
+   */
+  languageModelOverride?: () => LanguageModelV3;
 }

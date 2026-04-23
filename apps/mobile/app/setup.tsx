@@ -6,11 +6,13 @@ import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { ScreenHeader } from "@/components/ui/ScreenHeader";
 import { useAuth } from "@clerk/clerk-expo";
 
+import { PersonalityPicker } from "@/components/ai/PersonalityPicker";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
 import { PressableScale } from "@/components/PressableScale";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { haptics } from "@/lib/haptics";
 import { gameRepository } from "@/storage/gameRepository";
+import type { Personality } from "@cheddr/api-types";
 import type { Difficulty } from "@cheddr/game-engine";
 
 const DESCRIPTIONS: Record<Difficulty, string> = {
@@ -22,6 +24,7 @@ const DESCRIPTIONS: Record<Difficulty, string> = {
 export default function SetupScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate");
   const [ranked, setRanked] = useState(false);
+  const [personality, setPersonality] = useState<Personality>("coach");
   const { isSignedIn } = useAuth();
 
   return (
@@ -69,6 +72,14 @@ export default function SetupScreen() {
             />
           </View>
         </GlassPanel>
+
+        {ranked ? (
+          <GlassPanel variant="panel" style={{ width: "100%" }}>
+            <View className="px-4 py-3">
+              <PersonalityPicker value={personality} onChange={setPersonality} />
+            </View>
+          </GlassPanel>
+        ) : null}
       </View>
 
       <View className="px-6 pb-8">
@@ -77,7 +88,11 @@ export default function SetupScreen() {
             void gameRepository.clearGame();
             router.replace({
               pathname: "/game",
-              params: { difficulty, ranked: ranked ? "1" : "0" },
+              params: {
+                difficulty,
+                ranked: ranked ? "1" : "0",
+                ...(ranked ? { personality } : {}),
+              },
             });
             queueMicrotask(() => haptics.selectionChange());
           }}

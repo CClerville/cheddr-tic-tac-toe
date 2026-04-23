@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import type {
   GameStateDTO,
   MoveResponse,
+  Personality,
+  ResignResponse,
   StartGameResponse,
 } from "@cheddr/api-types";
 import type { Difficulty, GameState, Position } from "@cheddr/game-engine";
@@ -17,6 +19,7 @@ import type { GamePhase } from "./useGame";
 export interface UseRankedGameOptions {
   difficulty: Difficulty;
   ranked?: boolean;
+  personality?: Personality;
 }
 
 interface RankedState {
@@ -27,6 +30,8 @@ interface RankedState {
   error: string | null;
   outcome: "win" | "loss" | "draw" | null;
   eloDelta: number | null;
+  /** Set when the server reports a persisted game id (terminal move or resign). */
+  gameId: string | null;
 }
 
 const initialEngineState: GameState = {
@@ -61,7 +66,7 @@ function derivePhase(state: GameState): GamePhase {
  * the local `useGame` hook to preserve a smooth offline experience.
  */
 export function useRankedGame(options: UseRankedGameOptions) {
-  const { difficulty, ranked = true } = options;
+  const { difficulty, ranked = true, personality = "coach" } = options;
   const queryClient = useQueryClient();
   const [state, setState] = useState<RankedState>({
     sessionId: null,
@@ -71,6 +76,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
     error: null,
     outcome: null,
     eloDelta: null,
+    gameId: null,
   });
 
   // Server profile (ELO + ranked W/L/D) is the canonical source for ranked
@@ -90,6 +96,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
       const res = await apiPost<StartGameResponse>("/game/start", {
         difficulty,
         ranked,
+        personality,
       });
       const engine = dtoToEngine(res);
       setState({
@@ -100,6 +107,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         error: null,
         outcome: null,
         eloDelta: null,
+        gameId: null,
       });
     } catch (err) {
       setState((s) => ({
@@ -108,7 +116,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         error: err instanceof ApiError ? err.message : "Failed to start game",
       }));
     }
-  }, [difficulty, ranked]);
+  }, [difficulty, ranked, personality]);
 
   useEffect(() => {
     void start();
@@ -153,6 +161,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           error: null,
           outcome: res.outcome,
           eloDelta: res.eloDelta,
+          gameId: res.gameId ?? null,
         });
       } catch (err) {
         haptics.illegalTap();
@@ -171,11 +180,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
     if (!state.sessionId) return;
     setState((s) => ({ ...s, loading: true }));
     try {
-      const res = await apiPost<{
-        state: GameStateDTO;
-        outcome: "win" | "loss" | "draw";
-        eloDelta: number;
-      }>("/game/resign", { sessionId: state.sessionId });
+      const res = await apiPost<ResignResponse>("/game/resign", {
+        sessionId: state.sessionId,
+      });
       const engine = dtoToEngine(res.state);
       setState({
         sessionId: state.sessionId,
@@ -185,6 +192,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         error: null,
         outcome: res.outcome,
         eloDelta: res.eloDelta,
+        gameId: res.gameId,
       });
       invalidateProfile();
     } catch (err) {

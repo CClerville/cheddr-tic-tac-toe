@@ -6,6 +6,7 @@ import Animated, {
   useReducedMotion,
 } from "react-native-reanimated";
 
+import { AnalysisPanel } from "@/components/ai/AnalysisPanel";
 import { PressableScale } from "@/components/PressableScale";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
@@ -13,6 +14,7 @@ import { haptics } from "@/lib/haptics";
 import type { GameOutcome } from "@/storage/gameRepository";
 import { motion } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
+import { PersonalitySchema, type Personality } from "@cheddr/api-types";
 import type { Difficulty } from "@cheddr/game-engine";
 
 const VALID_OUTCOMES: GameOutcome[] = ["win", "loss", "draw"];
@@ -30,6 +32,20 @@ function parseDifficulty(value: unknown): Difficulty {
     return value as Difficulty;
   }
   return "intermediate";
+}
+
+function parseGameId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const id = value.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return null;
+  }
+  return id;
+}
+
+function parsePersonality(value: unknown): Personality {
+  const r = PersonalitySchema.safeParse(value);
+  return r.success ? r.data : "coach";
 }
 
 const COPY: Record<
@@ -57,6 +73,9 @@ export default function GameOverScreen() {
   const params = useLocalSearchParams();
   const outcome = parseOutcome(params.outcome);
   const difficulty = parseDifficulty(params.difficulty);
+  const ranked = params.ranked === "1";
+  const gameId = parseGameId(params.gameId);
+  const personality = parsePersonality(params.personality);
   const copy = COPY[outcome];
   const reduceMotion = useReducedMotion();
   const { palette } = useTheme();
@@ -92,6 +111,7 @@ export default function GameOverScreen() {
               <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark mt-4">
                 {difficulty} difficulty
               </Text>
+              {ranked && gameId ? <AnalysisPanel gameId={gameId} /> : null}
             </Animated.View>
 
             <Animated.View
@@ -106,7 +126,11 @@ export default function GameOverScreen() {
                 onPress={() => {
                   router.replace({
                     pathname: "/game",
-                    params: { difficulty },
+                    params: {
+                      difficulty,
+                      ranked: ranked ? "1" : "0",
+                      ...(ranked ? { personality } : {}),
+                    },
                   });
                   queueMicrotask(() => haptics.selectionChange());
                 }}

@@ -54,6 +54,8 @@ export const games = pgTable(
     durationMs: integer("duration_ms"),
     eloDelta: integer("elo_delta").notNull().default(0),
     ranked: boolean("ranked").notNull().default(true),
+    /** LLM post-game analysis JSON (`AnalysisResponse` from `@cheddr/api-types`). */
+    aiAnalysis: jsonb("ai_analysis").$type<unknown>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

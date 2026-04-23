@@ -86,6 +86,7 @@ describe("POST /game/start", () => {
     expect(body.currentPlayer).toBe("X");
     expect(body.difficulty).toBe("expert");
     expect(body.ranked).toBe(true);
+    expect((body as { personality: string }).personality).toBe("coach");
   });
 });
 

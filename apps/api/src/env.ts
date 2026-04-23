@@ -27,6 +27,13 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32).optional(),
 
   SENTRY_DSN: z.string().url().optional(),
+
+  /** Vercel AI Gateway API key (local dev). On Vercel, OIDC is used when unset. */
+  AI_GATEWAY_API_KEY: z.string().optional(),
+  /** Gateway model id, e.g. `openai/gpt-4o-mini`. */
+  AI_MODEL: z.string().optional(),
+  /** Hard cap on total tokens per user per UTC day (all AI features). */
+  AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

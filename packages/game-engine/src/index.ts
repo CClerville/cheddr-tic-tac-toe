@@ -10,4 +10,4 @@ export type {
 
 export { createBoard, createGame } from "./board";
 export { makeMove, checkResult, getValidMoves, WIN_LINES } from "./rules";
-export { getAiMove } from "./ai";
+export { getAiMove, getBestMove } from "./ai";
