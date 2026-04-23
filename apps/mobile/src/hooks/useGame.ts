@@ -94,7 +94,6 @@ export function useGame(options: UseGameOptions | Difficulty = {}) {
       cancelled = true;
     };
     // Hydration runs once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

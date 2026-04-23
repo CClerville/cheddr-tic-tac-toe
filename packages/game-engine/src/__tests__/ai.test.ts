@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getAiMove } from "../ai";
 import { createGame } from "../board";
 import { makeMove, checkResult, getValidMoves } from "../rules";
-import type { Board, GameState, Position } from "../types";
+import type { Board, GameState } from "../types";
 
 function boardFromArray(cells: (string | null)[]): Board {
   return cells.map((c) =>

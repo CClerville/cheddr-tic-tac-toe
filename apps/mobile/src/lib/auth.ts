@@ -1,4 +1,9 @@
-import type { AnonRequest, AnonResponse, MeResponse } from "@cheddr/api-types";
+import {
+  AnonResponseSchema,
+  MeResponseSchema,
+  type AnonRequest,
+  type MeResponse,
+} from "@cheddr/api-types";
 import * as Crypto from "expo-crypto";
 
 import { apiGet, apiPost } from "./api";
@@ -29,7 +34,7 @@ export async function ensureAnonIdentity(): Promise<AnonIdentity> {
 
   const deviceId = await ensureDeviceId();
   const body: AnonRequest = { deviceId };
-  const minted = await apiPost<AnonResponse>("/auth/anon", body);
+  const minted = await apiPost("/auth/anon", body, AnonResponseSchema);
   await persistAnon(minted);
   return minted;
 }
@@ -71,5 +76,5 @@ async function ensureDeviceId(): Promise<string> {
 
 /** Verify the cached identity is still accepted by the server. */
 export async function fetchMe(): Promise<MeResponse> {
-  return await apiGet<MeResponse>("/auth/me");
+  return await apiGet("/auth/me", MeResponseSchema);
 }

@@ -1,15 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 
-import type { HintResponse } from "@cheddr/api-types";
+import { HintResponseSchema } from "@cheddr/api-types";
 
 import { ApiError, apiPost } from "@/lib/api";
 
 export function useHintMutation() {
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      return await apiPost<HintResponse, { sessionId: string }>("/ai/hint", {
-        sessionId,
-      });
+      return await apiPost("/ai/hint", { sessionId }, HintResponseSchema);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 429) {

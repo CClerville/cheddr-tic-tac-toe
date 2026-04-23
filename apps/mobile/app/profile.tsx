@@ -7,7 +7,7 @@ import { useAuth, useClerk } from "@clerk/clerk-expo";
 import { PressableScale } from "@/components/PressableScale";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { API_BASE_URL, ApiError, apiGet } from "@/lib/api";
-import type { Profile } from "@cheddr/api-types";
+import { ProfileSchema, type Profile } from "@cheddr/api-types";
 
 export default function ProfileScreen() {
   const { isSignedIn, isLoaded, userId } = useAuth();
@@ -15,7 +15,7 @@ export default function ProfileScreen() {
 
   const { data, isLoading, error, refetch } = useQuery<Profile>({
     queryKey: ["user", "me", userId ?? "signed-out"],
-    queryFn: () => apiGet<Profile>("/user/me"),
+    queryFn: () => apiGet("/user/me", ProfileSchema),
     enabled: isLoaded && (!isSignedIn || !!userId),
   });
 

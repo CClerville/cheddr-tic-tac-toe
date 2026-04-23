@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { Redis } from "@upstash/redis";
 import {
   computeElo,
@@ -12,6 +12,88 @@ import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
 
 import { consumeEloBudget, setLeaderboardScore } from "./leaderboard.js";
 import { Sentry } from "./sentry.js";
+
+/** Normalize `db.execute()` across Neon HTTP (full result) and PGlite (`Results`). */
+function rowsFromExecute(result: unknown): Record<string, unknown>[] {
+  if (Array.isArray(result)) {
+    return result as Record<string, unknown>[];
+  }
+  if (result && typeof result === "object" && "rows" in result) {
+    const rows = (result as { rows: unknown }).rows;
+    if (Array.isArray(rows)) return rows as Record<string, unknown>[];
+  }
+  return [];
+}
+
+/**
+ * Single-statement INSERT into `games` + UPDATE `users` for ranked terminal games.
+ * Atomic on Postgres (Neon HTTP has no interactive transactions).
+ */
+async function insertRankedGameAndBumpUser(
+  db: Database,
+  input: PersistGameInput,
+  outcome: GameOutcome,
+  newElo: number,
+  appliedDelta: number,
+): Promise<{ id: string }> {
+  const winsInc = outcome === "win" ? 1 : 0;
+  const lossesInc = outcome === "loss" ? 1 : 0;
+  const drawsInc = outcome === "draw" ? 1 : 0;
+
+  const personalitySql: SQL =
+    input.personality == null ? sql`NULL` : sql`${input.personality}`;
+  const analysisSql: SQL =
+    input.aiAnalysis == null
+      ? sql`NULL`
+      : sql`${JSON.stringify(input.aiAnalysis)}::jsonb`;
+
+  const result = await db.execute(sql`
+    WITH inserted AS (
+      INSERT INTO games (
+        user_id,
+        difficulty,
+        result,
+        move_history,
+        duration_ms,
+        elo_delta,
+        ranked,
+        personality,
+        ai_analysis
+      )
+      VALUES (
+        ${input.userId},
+        ${input.difficulty},
+        ${outcome},
+        ${JSON.stringify(input.moveHistory)}::jsonb,
+        ${input.durationMs},
+        ${appliedDelta},
+        true,
+        ${personalitySql},
+        ${analysisSql}
+      )
+      RETURNING id
+    ),
+    bumped AS (
+      UPDATE users
+      SET
+        elo = ${newElo},
+        games_played = games_played + 1,
+        wins = wins + ${winsInc},
+        losses = losses + ${lossesInc},
+        draws = draws + ${drawsInc}
+      WHERE id = ${input.userId}
+      RETURNING id
+    )
+    SELECT id AS game_id FROM inserted
+  `);
+
+  const rows = rowsFromExecute(result);
+  const gameId = rows[0]?.["game_id"];
+  if (typeof gameId !== "string") {
+    throw new Error("Failed to insert ranked game row (no game_id returned)");
+  }
+  return { id: gameId };
+}
 
 /**
  * Map a Misere `GameResult` into the human player's outcome. The human
@@ -57,10 +139,10 @@ export interface PersistGameOutput {
 }
 
 /**
- * Atomically persist a terminal game and update derived state:
- *   - INSERT into `games`
- *   - UPDATE `users` (elo, gamesPlayed, w/l/d)
- *   - ZADD leaderboard (only for Clerk-backed users)
+ * Persist a terminal game and update derived state:
+ *   - Ranked: one SQL statement (CTE) — INSERT `games` + UPDATE `users` counters/ELO
+ *   - Unranked: INSERT `games` only (ranked counters unchanged)
+ *   - ZADD leaderboard (best-effort, Clerk-backed ranked only)
  *
  * Returns the final outcome and ELO delta so the caller can echo it back
  * to the client in the move/resign response.
@@ -97,28 +179,35 @@ export async function persistTerminalGame(
     newElo = Math.max(100, user.elo + appliedDelta);
   }
 
-  // NOTE: We intentionally run these as two sequential statements rather
-  // than wrapping in `db.transaction(...)`. The Neon HTTP driver does not
-  // support interactive transactions (`drizzle-orm/neon-http` throws
-  // "No transactions support in neon-http driver"), and our PGlite test
-  // harness silently *would* let it work — masking a production 500. The
-  // worst-case partial failure here is a games row inserted with the
-  // user-stats update missing, which is recoverable and not user-visible
-  // in the move/resign response (we only echo the inserted gameId).
-  const [inserted] = await db
-    .insert(schema.games)
-    .values({
-      userId: input.userId,
-      difficulty: input.difficulty,
-      result: outcome,
-      moveHistory: input.moveHistory,
-      durationMs: input.durationMs,
-      eloDelta: appliedDelta,
-      ranked: input.ranked,
-      personality: input.personality ?? null,
-      aiAnalysis: input.aiAnalysis ?? null,
-    })
-    .returning({ id: schema.games.id });
+  // Ranked: one SQL statement (CTE) so INSERT + UPDATE stay atomic without
+  // `db.transaction` (unsupported on `drizzle-orm/neon-http`). Unranked:
+  // single INSERT only — already atomic.
+  let inserted: { id: string } | undefined;
+  if (input.ranked) {
+    inserted = await insertRankedGameAndBumpUser(
+      db,
+      input,
+      outcome,
+      newElo,
+      appliedDelta,
+    );
+  } else {
+    const [row] = await db
+      .insert(schema.games)
+      .values({
+        userId: input.userId,
+        difficulty: input.difficulty,
+        result: outcome,
+        moveHistory: input.moveHistory,
+        durationMs: input.durationMs,
+        eloDelta: appliedDelta,
+        ranked: input.ranked,
+        personality: input.personality ?? null,
+        aiAnalysis: input.aiAnalysis ?? null,
+      })
+      .returning({ id: schema.games.id });
+    inserted = row;
+  }
 
   // The `users` aggregate counters (gamesPlayed/wins/losses/draws) and ELO
   // represent **ranked** progress only -- they feed the leaderboard and the
@@ -126,18 +215,6 @@ export async function persistTerminalGame(
   // (so they show up in the per-difficulty / per-personality breakdowns)
   // but must NOT inflate the ranked counters. The full ranked + casual
   // breakdown is served separately via `GET /user/stats`.
-  if (input.ranked) {
-    await db
-      .update(schema.users)
-      .set({
-        elo: newElo,
-        gamesPlayed: sql`${schema.users.gamesPlayed} + 1`,
-        wins: sql`${schema.users.wins} + ${outcome === "win" ? 1 : 0}`,
-        losses: sql`${schema.users.losses} + ${outcome === "loss" ? 1 : 0}`,
-        draws: sql`${schema.users.draws} + ${outcome === "draw" ? 1 : 0}`,
-      })
-      .where(eq(schema.users.id, input.userId));
-  }
 
   if (input.ranked && user.kind === "clerk") {
     // Best-effort: a leaderboard write failure should not poison the

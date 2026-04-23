@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type {
-  GameStateDTO,
-  MoveResponse,
-  Personality,
-  ResignResponse,
-  StartGameResponse,
+import {
+  MoveResponseSchema,
+  ResignResponseSchema,
+  StartGameResponseSchema,
+  type GameStateDTO,
+  type Personality,
 } from "@cheddr/api-types";
 import type { Difficulty, GameState, Position } from "@cheddr/game-engine";
 
@@ -96,11 +96,11 @@ export function useRankedGame(options: UseRankedGameOptions) {
     try {
       // Make sure we have a usable bearer token before kicking off.
       await ensureAnonIdentity();
-      const res = await apiPost<StartGameResponse>("/game/start", {
+      const res = await apiPost("/game/start", {
         difficulty,
         ranked,
         personality,
-      });
+      }, StartGameResponseSchema);
       const engine = dtoToEngine(res);
       setState({
         sessionId: res.sessionId,
@@ -131,10 +131,10 @@ export function useRankedGame(options: UseRankedGameOptions) {
       if (state.phase !== "player_turn") return;
       setState((s) => ({ ...s, loading: true, phase: "ai_thinking" }));
       try {
-        const res = await apiPost<MoveResponse>("/game/move", {
+        const res = await apiPost("/game/move", {
           sessionId: state.sessionId,
           position,
-        });
+        }, MoveResponseSchema);
         const engine = dtoToEngine(res.state);
         if (res.terminal) {
           Sentry.addBreadcrumb({
@@ -182,8 +182,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
         }
         haptics.illegalTap();
         try {
-          const dto = await apiGet<GameStateDTO>(
+          const dto = await apiGet(
             `/game/${state.sessionId}/state`,
+            StartGameResponseSchema,
           );
           const engine = dtoToEngine(dto);
           setState({
@@ -217,9 +218,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
     if (!state.sessionId) return;
     setState((s) => ({ ...s, loading: true }));
     try {
-      const res = await apiPost<ResignResponse>("/game/resign", {
+      const res = await apiPost("/game/resign", {
         sessionId: state.sessionId,
-      });
+      }, ResignResponseSchema);
       const engine = dtoToEngine(res.state);
       setState({
         sessionId: state.sessionId,
@@ -234,8 +235,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
       invalidateAfterTerminal();
     } catch (err) {
       try {
-        const dto = await apiGet<GameStateDTO>(
+        const dto = await apiGet(
           `/game/${state.sessionId}/state`,
+          StartGameResponseSchema,
         );
         const engine = dtoToEngine(dto);
         setState({

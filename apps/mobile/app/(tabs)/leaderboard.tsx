@@ -23,10 +23,12 @@ import { useTabBarScroll } from "@/components/ui/TabBarScrollContext";
 import { apiGet } from "@/lib/api";
 import { useAuthBootstrap } from "@/providers/AuthBootstrap";
 import { tabBar } from "@/theme/tokens";
-import type {
-  LeaderboardEntry,
-  LeaderboardMeResponse,
-  LeaderboardTopResponse,
+import {
+  LeaderboardMeResponseSchema,
+  LeaderboardTopResponseSchema,
+  type LeaderboardEntry,
+  type LeaderboardMeResponse,
+  type LeaderboardTopResponse,
 } from "@cheddr/api-types";
 
 export default function LeaderboardScreen() {
@@ -53,13 +55,14 @@ export default function LeaderboardScreen() {
 
   const top = useQuery<LeaderboardTopResponse>({
     queryKey: ["leaderboard", "top"],
-    queryFn: () => apiGet<LeaderboardTopResponse>("/leaderboard/top?limit=50"),
+    queryFn: () =>
+      apiGet("/leaderboard/top?limit=50", LeaderboardTopResponseSchema),
     enabled: queriesEnabled,
   });
 
   const me = useQuery<LeaderboardMeResponse>({
     queryKey: ["leaderboard", "me", isSignedIn ? "clerk" : "anon"],
-    queryFn: () => apiGet<LeaderboardMeResponse>("/leaderboard/me"),
+    queryFn: () => apiGet("/leaderboard/me", LeaderboardMeResponseSchema),
     enabled: queriesEnabled,
   });
 

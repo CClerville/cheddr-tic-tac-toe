@@ -4,7 +4,8 @@ import { schema } from "@cheddr/db";
 import type { UserStatsResponse } from "@cheddr/api-types";
 
 import { createApp } from "../app.js";
-import { createUserRoutes, buildUserStatsResponse } from "../routes/user.js";
+import { createUserRoutes } from "../routes/user.js";
+import { buildUserStatsResponse } from "../services/userStats.js";
 import { persistTerminalGame } from "../lib/persist.js";
 import { createHarness } from "./harness.js";
 

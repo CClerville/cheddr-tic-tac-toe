@@ -3,12 +3,13 @@ import { useAuth } from "@clerk/clerk-expo";
 
 import { apiGet } from "@/lib/api";
 import { useAuthBootstrap } from "@/providers/AuthBootstrap";
-import type {
-  DifficultyModeStats,
-  ModeStats,
-  PersonalityKey,
-  PersonalityStatsRow,
-  UserStatsResponse,
+import {
+  UserStatsResponseSchema,
+  type DifficultyModeStats,
+  type ModeStats,
+  type PersonalityKey,
+  type PersonalityStatsRow,
+  type UserStatsResponse,
 } from "@cheddr/api-types";
 import type { Difficulty } from "@cheddr/game-engine";
 
@@ -63,7 +64,7 @@ export function useUserStats(): UseUserStatsResult {
 
   const { data, isLoading, error } = useQuery<UserStatsResponse>({
     queryKey: ["user", "stats", userId ?? "signed-out"],
-    queryFn: () => apiGet<UserStatsResponse>("/user/stats"),
+    queryFn: () => apiGet("/user/stats", UserStatsResponseSchema),
     enabled,
     // Stats are derived from immutable game rows; safe to cache aggressively
     // and rely on explicit invalidations from useRankedGame for freshness.

@@ -216,7 +216,7 @@ describe("game terminal persistence", () => {
   });
 
   it("adds Clerk-backed users to the leaderboard sorted set", async () => {
-    const { harness, app } = await build();
+    const { harness } = await build();
     const clerkId = "user_clerk_test_123";
     await ensureUser(harness.db, clerkId, "clerk");
     // We don't have a Clerk verifier configured in tests; instead we mint

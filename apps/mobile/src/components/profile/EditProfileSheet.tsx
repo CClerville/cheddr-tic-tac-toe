@@ -12,6 +12,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HEX_COLOR_PATTERN,
+  ProfileUpdateResponseSchema,
   type Profile,
   type ProfileUpdateRequest,
   type ProfileUpdateResponse,
@@ -115,7 +116,7 @@ export function EditProfileSheet({
 
   const mutation = useMutation<ProfileUpdateResponse, Error, ProfileUpdateRequest>({
     mutationFn: (body) =>
-      apiPatch<ProfileUpdateResponse, ProfileUpdateRequest>("/user/me", body),
+      apiPatch("/user/me", body, ProfileUpdateResponseSchema),
     onSuccess: (res) => {
       haptics.win();
       qc.setQueryData<Profile>(["user", "me", profile.id], res.profile);

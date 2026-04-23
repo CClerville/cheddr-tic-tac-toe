@@ -188,16 +188,22 @@ export async function apiPostStreaming(
  * Tiny convenience helpers. We deliberately avoid a heavy generated
  * client (`hc<AppType>()`) because importing the API's internal Hono
  * type from a React Native bundle is fragile and bloats the bundle.
- * Instead we keep typed request/response with Zod schemas from
- * `@cheddr/api-types` and call thin wrappers below.
+ * Instead we validate JSON with Zod schemas from `@cheddr/api-types`.
  */
-export async function apiGet<T>(path: string): Promise<T> {
+export async function apiGetUnsafe<T>(path: string): Promise<T> {
   const res = await authFetch(path);
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
 }
 
-export async function apiPost<T, B = unknown>(
+export async function apiGet<T>(path: string, schema: ZodType<T>): Promise<T> {
+  const res = await authFetch(path);
+  if (!res.ok) throw await toApiError(res);
+  const json: unknown = await res.json();
+  return schema.parse(json);
+}
+
+export async function apiPostUnsafe<T, B = unknown>(
   path: string,
   body?: B,
 ): Promise<T> {
@@ -209,8 +215,7 @@ export async function apiPost<T, B = unknown>(
   return (await res.json()) as T;
 }
 
-/** POST + runtime Zod validation (catches wire drift early in dev). */
-export async function apiPostValidated<T, B = unknown>(
+export async function apiPost<T, B = unknown>(
   path: string,
   body: B | undefined,
   schema: ZodType<T>,
@@ -224,7 +229,7 @@ export async function apiPostValidated<T, B = unknown>(
   return schema.parse(json);
 }
 
-export async function apiPatch<T, B = unknown>(
+export async function apiPatchUnsafe<T, B = unknown>(
   path: string,
   body?: B,
 ): Promise<T> {
@@ -234,6 +239,20 @@ export async function apiPatch<T, B = unknown>(
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
+}
+
+export async function apiPatch<T, B = unknown>(
+  path: string,
+  body: B | undefined,
+  schema: ZodType<T>,
+): Promise<T> {
+  const res = await authFetch(path, {
+    method: "PATCH",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw await toApiError(res);
+  const json: unknown = await res.json();
+  return schema.parse(json);
 }
 
 export class ApiError extends Error {

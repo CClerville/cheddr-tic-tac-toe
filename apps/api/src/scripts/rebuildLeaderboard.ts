@@ -68,12 +68,10 @@ export async function rebuild(
 if (import.meta.url === `file://${process.argv[1]}`) {
   main()
     .then(() => {
-      // eslint-disable-next-line no-console
       console.log("Leaderboard rebuilt");
       process.exit(0);
     })
     .catch((err) => {
-      // eslint-disable-next-line no-console
       console.error("Rebuild failed:", err);
       process.exit(1);
     });

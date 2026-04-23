@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -8,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { Difficulty, Position } from "@cheddr/game-engine";
 
 export type UserKind = "clerk" | "anon";
@@ -29,27 +31,36 @@ export type GamePersonality =
  * anon -> Clerk is a transactional UPDATE of `games.user_id` and a DELETE
  * of the orphaned anon row -- no separate merge table needed.
  */
-export const users = pgTable("users", {
-  id: text("id").primaryKey(),
-  kind: text("kind").$type<UserKind>().notNull(),
-  username: text("username").unique(),
-  /** Optional human-readable name shown above the @username on the profile. */
-  displayName: text("display_name"),
-  /**
-   * Hex color (e.g. `#F59E0B`) used as the avatar background when the user
-   * has not uploaded an image. Stored as text so we are not locked into a
-   * fixed palette — application-layer validation enforces `#RRGGBB`.
-   */
-  avatarColor: text("avatar_color"),
-  elo: integer("elo").notNull().default(1000),
-  gamesPlayed: integer("games_played").notNull().default(0),
-  wins: integer("wins").notNull().default(0),
-  losses: integer("losses").notNull().default(0),
-  draws: integer("draws").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<UserKind>().notNull(),
+    username: text("username").unique(),
+    /** Optional human-readable name shown above the @username on the profile. */
+    displayName: text("display_name"),
+    /**
+     * Hex color (e.g. `#F59E0B`) used as the avatar background when the user
+     * has not uploaded an image. Stored as text so we are not locked into a
+     * fixed palette — application-layer validation enforces `#RRGGBB`.
+     */
+    avatarColor: text("avatar_color"),
+    elo: integer("elo").notNull().default(1000),
+    gamesPlayed: integer("games_played").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
+    draws: integer("draws").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  () => ({
+    usersKindCheck: check(
+      "users_kind_check",
+      sql.raw(`"kind" IN ('anon', 'clerk')`),
+    ),
+  }),
+);
 
 export const games = pgTable(
   "games",
@@ -80,6 +91,20 @@ export const games = pgTable(
     userCreatedIdx: index("games_user_created_idx").on(
       t.userId,
       t.createdAt.desc(),
+    ),
+    gamesDifficultyCheck: check(
+      "games_difficulty_check",
+      sql.raw(`"difficulty" IN ('beginner', 'intermediate', 'expert')`),
+    ),
+    gamesResultCheck: check(
+      "games_result_check",
+      sql.raw(`"result" IN ('win', 'loss', 'draw')`),
+    ),
+    gamesPersonalityCheck: check(
+      "games_personality_check",
+      sql.raw(
+        `"personality" IS NULL OR "personality" IN ('trash_talk', 'coach', 'zen_master', 'sports_caster')`,
+      ),
     ),
   }),
 );

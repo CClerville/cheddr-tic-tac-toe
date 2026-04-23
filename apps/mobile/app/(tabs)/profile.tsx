@@ -38,7 +38,7 @@ import { useAuthBootstrap } from "@/providers/AuthBootstrap";
 import { type GameStats } from "@/storage/gameRepository";
 import { tabBar } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
-import type { Profile } from "@cheddr/api-types";
+import { ProfileSchema, type Profile } from "@cheddr/api-types";
 
 const SIGNED_IN_TABS = [
   "Overview",
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
 
   const { data, isLoading, error, refetch } = useQuery<Profile>({
     queryKey: ["user", "me", userId ?? "signed-out"],
-    queryFn: () => apiGet<Profile>("/user/me"),
+    queryFn: () => apiGet("/user/me", ProfileSchema),
     enabled: profileEnabled,
   });
 

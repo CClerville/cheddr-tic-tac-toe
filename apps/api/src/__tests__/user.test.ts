@@ -112,7 +112,7 @@ describe("POST /user/sync-anon", () => {
   });
 
   it("merges games + stats and removes the anon row when called by Clerk", async () => {
-    const { harness, app } = await build();
+    const { harness } = await build();
 
     // Set up an anon user with 3 finished games.
     const anonId = `anon_${crypto.randomUUID()}`;

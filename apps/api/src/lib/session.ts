@@ -40,8 +40,13 @@ const AI_COMPLETED_TTL_SECONDS = 60 * 10; // 10 minutes
 /**
  * Commentary lines are stored separately so streaming `onFinish` cannot
  * clobber a concurrent `/game/move` read-modify-write on the live session.
+ *
+ * Legacy: JSON array blob at `session:commentary:${id}` (SET). New path:
+ * Redis LIST at `session:commentary:list:${id}` with RPUSH + LTRIM (atomic
+ * per line append, bounded to last 20).
  */
 const COMMENTARY_SIDECAR_KEY = (id: string) => `session:commentary:${id}`;
+const COMMENTARY_LIST_KEY = (id: string) => `session:commentary:list:${id}`;
 
 const MOVE_LOCK_KEY = (id: string) => `session:move_lock:${id}`;
 const MOVE_LOCK_TTL_SECONDS = 5;
@@ -78,7 +83,41 @@ const GameSessionSchema = z
 
 type CommentaryLine = { role: "assistant"; text: string };
 
-async function readCommentarySidecar(
+function parseCommentaryLineJson(raw: string): CommentaryLine | null {
+  try {
+    const o = JSON.parse(raw) as unknown;
+    if (
+      o &&
+      typeof o === "object" &&
+      "role" in o &&
+      (o as { role: string }).role === "assistant" &&
+      "text" in o &&
+      typeof (o as { text: unknown }).text === "string"
+    ) {
+      return { role: "assistant", text: (o as { text: string }).text };
+    }
+  } catch {
+    /* invalid JSON */
+  }
+  return null;
+}
+
+async function readCommentaryList(
+  redis: Redis,
+  sessionId: string,
+): Promise<CommentaryLine[] | null> {
+  const listKey = COMMENTARY_LIST_KEY(sessionId);
+  const items = await redis.lrange<string>(listKey, 0, -1);
+  if (!items?.length) return null;
+  const lines: CommentaryLine[] = [];
+  for (const item of items) {
+    const line = parseCommentaryLineJson(item);
+    if (line) lines.push(line);
+  }
+  return lines.length > 0 ? lines : null;
+}
+
+async function readLegacyCommentaryBlob(
   redis: Redis,
   sessionId: string,
 ): Promise<CommentaryLine[] | null> {
@@ -97,6 +136,15 @@ async function readCommentarySidecar(
   return Array.isArray(raw) ? raw : null;
 }
 
+async function readCommentarySidecar(
+  redis: Redis,
+  sessionId: string,
+): Promise<CommentaryLine[] | null> {
+  const fromList = await readCommentaryList(redis, sessionId);
+  if (fromList?.length) return fromList;
+  return readLegacyCommentaryBlob(redis, sessionId);
+}
+
 function mergeCommentaryHistory(
   session: GameSession,
   sidecar: CommentaryLine[] | null,
@@ -108,8 +156,9 @@ function mergeCommentaryHistory(
 }
 
 /**
- * Append one assistant commentary line to the sidecar (atomic append path
- * for `/ai/commentary` `onFinish` — never overwrites the live session blob).
+ * Append one assistant commentary line to the Redis LIST sidecar (RPUSH +
+ * LTRIM). Migrates a legacy JSON blob once if present. Never touches the
+ * live session blob.
  */
 export async function appendCommentaryLine(
   redis: Redis,
@@ -118,13 +167,24 @@ export async function appendCommentaryLine(
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;
-  const prev = (await readCommentarySidecar(redis, sessionId)) ?? [];
-  const next = [...prev, { role: "assistant" as const, text: trimmed }].slice(
-    -20,
+  const listKey = COMMENTARY_LIST_KEY(sessionId);
+  const legacyKey = COMMENTARY_SIDECAR_KEY(sessionId);
+  const existing = await redis.lrange<string>(listKey, 0, -1);
+  if (!existing?.length) {
+    const legacy = await readLegacyCommentaryBlob(redis, sessionId);
+    if (legacy?.length) {
+      for (const line of legacy) {
+        await redis.rpush(listKey, JSON.stringify(line));
+      }
+      await redis.del(legacyKey);
+    }
+  }
+  await redis.rpush(
+    listKey,
+    JSON.stringify({ role: "assistant" as const, text: trimmed }),
   );
-  await redis.set(COMMENTARY_SIDECAR_KEY(sessionId), JSON.stringify(next), {
-    ex: SESSION_TTL_SECONDS,
-  });
+  await redis.ltrim(listKey, -20, -1);
+  await redis.expire(listKey, SESSION_TTL_SECONDS);
 }
 
 export async function saveCompletedSessionForAi(
@@ -187,7 +247,8 @@ function normalizeSession(s: GameSession): GameSession {
 function parseSessionPayload(raw: unknown): GameSession | null {
   const parsed = GameSessionSchema.safeParse(raw);
   if (!parsed.success) return null;
-  const { v: _v, ...rest } = parsed.data;
+  const { v, ...rest } = parsed.data;
+  void v;
   return normalizeSession(rest as unknown as GameSession);
 }
 
@@ -227,7 +288,7 @@ export async function updateSession(
 }
 
 export async function deleteSession(redis: Redis, id: string): Promise<void> {
-  await redis.del(KEY(id), COMMENTARY_SIDECAR_KEY(id));
+  await redis.del(KEY(id), COMMENTARY_SIDECAR_KEY(id), COMMENTARY_LIST_KEY(id));
 }
 
 /**
