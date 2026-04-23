@@ -25,4 +25,4 @@ Upstream maps work to phases (Define → Plan → Build → Verify → Review �
 
 ## CI/CD
 
-GitHub Actions run **Drizzle migrations** (Neon preview per PR; production on `main`), **Vercel API deploy** after prod migrations, and **Expo EAS Update / Build** for mobile. Required secrets/variables and workflow overview: [docs/ci.md](docs/ci.md).
+GitHub Actions run **Drizzle migrations** (Neon preview per PR; production on `main`), **Vercel API deploy** after prod migrations, and **Expo EAS Update / Build** for mobile. Required secrets/variables and workflow overview: [docs/ci.md](docs/ci.md). Internal preview installs (APK + iOS ad-hoc) and OTA on the `preview` channel: [docs/mobile-preview-builds.md](docs/mobile-preview-builds.md).

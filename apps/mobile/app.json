@@ -9,7 +9,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cheddr.tictactoe"
+      "bundleIdentifier": "com.cheddr.tictactoe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +34,12 @@
         "projectId": "2c7590f1-9e24-44d9-9e90-0b4846d9f8e4"
       }
     },
-    "owner": "cclerv"
+    "owner": "cclerv",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2c7590f1-9e24-44d9-9e90-0b4846d9f8e4"
+    }
   }
 }

@@ -42,6 +42,10 @@ pnpm dlx eas-cli@latest init
 
 Commit any `app.json` / config changes EAS suggests, then copy the **project ID** into the GitHub variable `EXPO_PROJECT_ID`.
 
+## Mobile: internal preview installs (testers)
+
+Step-by-step for **EAS internal distribution** (APK + ad-hoc iOS), device registration, install URLs, and OTA updates on the `preview` channel: [mobile-preview-builds.md](mobile-preview-builds.md).
+
 ## Branch protection (recommended)
 
 On `main`, require status checks:

@@ -13,6 +13,10 @@
     "lint": "tsc --noEmit",
     "clean": "rm -rf .expo node_modules",
     "eas:update": "eas update --auto --non-interactive",
+    "eas:update:preview": "eas update --channel preview --non-interactive --message \"preview OTA\"",
+    "eas:device:create": "eas device:create",
+    "eas:devices": "eas device:list",
+    "eas:build:preview:android": "eas build --platform android --profile preview --non-interactive --no-wait",
     "eas:build:preview": "eas build --platform all --profile preview --non-interactive --no-wait",
     "eas:build:production": "eas build --platform all --profile production --non-interactive --no-wait"
   },
