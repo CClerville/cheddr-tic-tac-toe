@@ -8,9 +8,15 @@
     "build": "node -e \"process.exit(0)\"",
     "lint": "node -e \"process.exit(0)\""
   },
+  "peerDependencies": {
+    "eslint": "^9.21.0"
+  },
   "dependencies": {
-    "@typescript-eslint/eslint-plugin": "latest",
-    "@typescript-eslint/parser": "latest",
-    "eslint": "latest"
+    "@typescript-eslint/eslint-plugin": "^8.59.0",
+    "@typescript-eslint/parser": "^8.59.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-promise": "^7.2.1",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-react-hooks": "^5.2.0"
   }
 }
