@@ -1,4 +1,7 @@
 import { Buffer } from "node:buffer";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -22,38 +25,23 @@ export async function createTestDb(): Promise<Database> {
 }
 
 async function applySchema(client: PGlite): Promise<void> {
-  await client.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id text PRIMARY KEY,
-      kind text NOT NULL,
-      username text UNIQUE,
-      display_name text,
-      avatar_color text,
-      elo integer NOT NULL DEFAULT 1000,
-      games_played integer NOT NULL DEFAULT 0,
-      wins integer NOT NULL DEFAULT 0,
-      losses integer NOT NULL DEFAULT 0,
-      draws integer NOT NULL DEFAULT 0,
-      created_at timestamptz NOT NULL DEFAULT now()
-    );
-
-    CREATE TABLE IF NOT EXISTS games (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      difficulty text NOT NULL,
-      result text NOT NULL,
-      move_history jsonb NOT NULL,
-      duration_ms integer,
-      elo_delta integer NOT NULL DEFAULT 0,
-      ranked boolean NOT NULL DEFAULT true,
-      personality text,
-      ai_analysis jsonb,
-      created_at timestamptz NOT NULL DEFAULT now()
-    );
-
-    CREATE INDEX IF NOT EXISTS games_user_created_idx
-      ON games (user_id, created_at DESC);
-  `);
+  const migrationsDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../../../packages/db/src/migrations",
+  );
+  const files = (await readdir(migrationsDir))
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  for (const file of files) {
+    const sql = await readFile(path.join(migrationsDir, file), "utf8");
+    const chunks = sql
+      .split(/--> statement-breakpoint/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const chunk of chunks) {
+      await client.exec(chunk);
+    }
+  }
 }
 
 export interface TestHarness {

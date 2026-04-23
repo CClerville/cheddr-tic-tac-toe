@@ -4,9 +4,6 @@ vi.mock("../lib/clerkVerify.js", () => ({
   verifyClerkSessionToken: vi.fn(),
 }));
 
-import { eq } from "drizzle-orm";
-import { schema } from "@cheddr/db";
-
 import { verifyClerkSessionToken } from "../lib/clerkVerify.js";
 import { createApp } from "../app.js";
 import { createUserRoutes } from "../routes/user.js";

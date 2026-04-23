@@ -12,7 +12,8 @@
     "dev:ios": "expo start --ios",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "lint": "tsc --noEmit",
+    "lint": "eslint app src",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf .expo node_modules",
     "eas:update": "eas update --auto --non-interactive",
     "eas:update:preview": "eas update --channel preview --non-interactive --message \"preview OTA\"",
@@ -61,7 +62,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@cheddr/config-eslint": "workspace:*",
+    "@testing-library/react": "^16.2.0",
     "@types/react": "~19.1.17",
+    "eslint": "^9.21.0",
+    "jsdom": "^26.0.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

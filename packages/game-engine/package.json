@@ -19,10 +19,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@cheddr/config-eslint": "workspace:*",
     "@cheddr/config-ts": "workspace:*",
+    "eslint": "^9.21.0",
     "fast-check": "^4.7.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

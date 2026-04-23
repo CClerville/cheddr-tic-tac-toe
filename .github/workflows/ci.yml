@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    name: lint • typecheck • test
+    name: ESLint, build, test, mobile typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +28,12 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      - name: ESLint (turbo)
+        run: pnpm turbo run lint
+
+      - name: Typecheck (packages + API)
+        run: pnpm turbo run typecheck --filter='!@cheddr/mobile'
 
       - name: Build (turbo)
         run: pnpm turbo run build --filter='!@cheddr/mobile'

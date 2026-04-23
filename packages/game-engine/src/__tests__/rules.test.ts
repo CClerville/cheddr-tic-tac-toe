@@ -7,19 +7,6 @@ function boardFromArray(cells: (string | null)[]): Board {
   return cells.map((c) => (c === "X" || c === "O" ? c : null)) as unknown as Board;
 }
 
-function stateWithBoard(
-  board: Board,
-  currentPlayer: "X" | "O" = "X",
-): GameState {
-  return {
-    board,
-    currentPlayer,
-    moveHistory: [],
-    result: checkResult(board),
-    difficulty: "beginner",
-  };
-}
-
 describe("getValidMoves", () => {
   it("returns all 9 positions for an empty board", () => {
     const board = boardFromArray([

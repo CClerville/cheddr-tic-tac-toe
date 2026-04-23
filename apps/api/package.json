@@ -7,8 +7,10 @@
     "dev": "tsx watch --env-file=.env.local src/index.ts",
     "build": "tsc",
     "test": "vitest run",
+    "reconcile:stats": "tsx src/scripts/reconcileUserStats.ts",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -29,7 +31,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cheddr/config-eslint": "workspace:*",
     "@cheddr/config-ts": "workspace:*",
+    "eslint": "^9.21.0",
     "@electric-sql/pglite": "^0.4.4",
     "@types/node": "^25.6.0",
     "tsx": "^4.20.6",

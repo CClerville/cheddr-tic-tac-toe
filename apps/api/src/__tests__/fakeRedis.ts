@@ -41,14 +41,31 @@ export interface FakeRedis {
 
   incrby(key: string, by: number): Promise<number>;
 
+  rpush(key: string, ...values: string[]): Promise<number>;
+  lrange(key: string, start: number, stop: number): Promise<string[]>;
+  ltrim(key: string, start: number, stop: number): Promise<"OK">;
+
   /** Test-only helpers. */
   __dump(): Record<string, unknown>;
   __reset(): void;
 }
 
+function normalizeRedisRangeIndex(
+  idx: number,
+  len: number,
+): number {
+  if (len === 0) return 0;
+  let i = idx;
+  if (i < 0) i = len + i;
+  if (i < 0) i = 0;
+  if (i >= len) i = len - 1;
+  return i;
+}
+
 export function createFakeRedis(): FakeRedis {
   const kv = new Map<string, { value: unknown; expiresAt: number | null }>();
   const zsets = new Map<string, ZSetMember[]>();
+  const lists = new Map<string, { items: string[]; expiresAt: number | null }>();
 
   function isExpired(entry: { expiresAt: number | null }): boolean {
     return entry.expiresAt !== null && entry.expiresAt <= Date.now();
@@ -62,6 +79,16 @@ export function createFakeRedis(): FakeRedis {
       return null;
     }
     return entry.value;
+  }
+
+  function readList(key: string): string[] | null {
+    const entry = lists.get(key);
+    if (!entry) return null;
+    if (isExpired(entry)) {
+      lists.delete(key);
+      return null;
+    }
+    return entry.items;
   }
 
   return {
@@ -89,14 +116,22 @@ export function createFakeRedis(): FakeRedis {
       for (const k of keys) {
         if (kv.delete(k)) n++;
         if (zsets.delete(k)) n++;
+        if (lists.delete(k)) n++;
       }
       return n;
     },
     async expire(key, seconds) {
       const entry = kv.get(key);
-      if (!entry) return 0;
-      entry.expiresAt = Date.now() + seconds * 1000;
-      return 1;
+      const listEntry = lists.get(key);
+      if (entry) {
+        entry.expiresAt = Date.now() + seconds * 1000;
+        return 1;
+      }
+      if (listEntry) {
+        listEntry.expiresAt = Date.now() + seconds * 1000;
+        return 1;
+      }
+      return 0;
     },
 
     async zadd(key, ...args) {
@@ -160,15 +195,55 @@ export function createFakeRedis(): FakeRedis {
       return next;
     },
 
+    async rpush(key, ...values) {
+      let entry = lists.get(key);
+      if (!entry || isExpired(entry)) {
+        entry = { items: [], expiresAt: null };
+        lists.set(key, entry);
+      }
+      entry.items.push(...values);
+      return entry.items.length;
+    },
+
+    async lrange(key, start, stop) {
+      const items = readList(key);
+      if (!items || items.length === 0) return [];
+      const len = items.length;
+      let s = start;
+      let e = stop;
+      if (s < 0) s = len + s;
+      if (e < 0) e = len + e;
+      s = Math.max(0, Math.min(len - 1, s));
+      e = Math.max(0, Math.min(len - 1, e));
+      if (s > e) return [];
+      return items.slice(s, e + 1);
+    },
+
+    async ltrim(key, start, stop) {
+      const entry = lists.get(key);
+      if (!entry || isExpired(entry)) return "OK";
+      const len = entry.items.length;
+      let s = normalizeRedisRangeIndex(start, len);
+      let e = normalizeRedisRangeIndex(stop, len);
+      if (s > e) {
+        entry.items = [];
+      } else {
+        entry.items = entry.items.slice(s, e + 1);
+      }
+      return "OK";
+    },
+
     __dump() {
       return {
         kv: Object.fromEntries(kv.entries()),
         zsets: Object.fromEntries(zsets.entries()),
+        lists: Object.fromEntries(lists.entries()),
       };
     },
     __reset() {
       kv.clear();
       zsets.clear();
+      lists.clear();
     },
   };
 }

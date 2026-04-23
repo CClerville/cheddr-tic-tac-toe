@@ -1,5 +1,5 @@
 import type { Board, CellValue, GameState, Player, Position } from "./types";
-import { WIN_LINES, getValidMoves, checkResult } from "./rules";
+import { getValidMoves, checkResult } from "./rules";
 
 function negamax(
   board: Board,

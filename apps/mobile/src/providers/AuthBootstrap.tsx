@@ -1,10 +1,11 @@
-import {
+import React, {
   createContext,
   useContext,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useAuth } from "@clerk/clerk-expo";
 
@@ -48,7 +49,7 @@ const READY_TIMEOUT_MS = 1200;
  * Exposes a context with `{ ready, identityKind }` that the splash
  * gate uses to avoid the brief "anonymous flash" on cold start.
  */
-export function AuthBootstrap({ children }: { children: React.ReactNode }) {
+export function AuthBootstrap({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, getToken, userId } = useAuth();
   const [ready, setReady] = useState(false);
   const [identityKind, setIdentityKind] =
@@ -66,10 +67,17 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const timeoutRef = { current: null as ReturnType<typeof setTimeout> | null };
+    /** Sync flag so the timeout callback never sees a stale React `ready` closure. */
+    let readyResolved = false;
 
     function markReady(kind: AuthIdentityKind) {
       if (cancelled) return;
+      readyResolved = true;
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       setIdentityKind(kind);
       setReady(true);
       try {
@@ -83,8 +91,8 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
       }
     }
 
-    timeoutId = setTimeout(() => {
-      if (!cancelled && !ready) {
+    timeoutRef.current = setTimeout(() => {
+      if (!cancelled && !readyResolved) {
         try {
           Sentry.addBreadcrumb({
             category: "auth.bootstrap",
@@ -161,10 +169,12 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, getToken, userId]);
 
   return (
     <AuthBootstrapContext.Provider value={{ ready, identityKind }}>

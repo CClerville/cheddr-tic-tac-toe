@@ -20,7 +20,7 @@ import { PressableScale } from "@/components/PressableScale";
 import { apiPost, setClerkTokenGetter } from "@/lib/api";
 import { readCachedAnon, clearAnon } from "@/lib/auth";
 import { useGoogleSignIn } from "@/lib/oauth";
-import type { SyncAnonResponse } from "@cheddr/api-types";
+import { SyncAnonResponseSchema } from "@cheddr/api-types";
 
 type Step = "choose" | "email" | "code";
 type EmailAuthKind = "signInCode" | "signUpCode";
@@ -240,9 +240,13 @@ export default function SignInScreen() {
     try {
       const anon = await readCachedAnon();
       if (!anon) return;
-      const res = await apiPost<SyncAnonResponse>("/user/sync-anon", {
-        anonToken: anon.token,
-      });
+      const res = await apiPost(
+        "/user/sync-anon",
+        {
+          anonToken: anon.token,
+        },
+        SyncAnonResponseSchema,
+      );
       if (res.mergedGames > 0) {
         await clearAnon();
       }

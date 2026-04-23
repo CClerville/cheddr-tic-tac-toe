@@ -6,7 +6,7 @@ This repo uses GitHub Actions for **versioned database migrations**, **Vercel pr
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| [`ci.yml`](../.github/workflows/ci.yml) | PR + push `main` | Lint, typecheck, test (Turbo; mobile `tsc` separately). |
+| [`ci.yml`](../.github/workflows/ci.yml) | PR + push `main` | ESLint (`turbo run lint`), typecheck (`turbo run typecheck`), build, test; mobile `tsc` separately. |
 | [`db-migrate.yml`](../.github/workflows/db-migrate.yml) | PR | `drizzle-kit check` on every PR; on `packages/db` changes, create Neon branch `preview/pr-<n>`, run `drizzle-kit migrate`, comment on PR. |
 | [`db-cleanup.yml`](../.github/workflows/db-cleanup.yml) | PR closed | Delete Neon branch `preview/pr-<n>` (`continue-on-error` if it never existed). |
 | [`mobile.yml`](../.github/workflows/mobile.yml) | PR (mobile paths) | Build workspace packages without secrets; optional **EAS Update** publish job (requires `EXPO_TOKEN` + GitHub Environment). |
@@ -50,7 +50,7 @@ Step-by-step for **EAS internal distribution** (APK + ad-hoc iOS), device regist
 
 On `main`, require status checks:
 
-- `lint • typecheck • test` (CI)
+- `ESLint, build, test, mobile typecheck` (CI job name in `ci.yml`)
 - `drizzle-kit check` (DB migrations PR workflow)
 - `Deploy (production)` jobs as appropriate once stable
 
@@ -64,6 +64,20 @@ pnpm --filter @cheddr/db db:migrate    # local migrate
 ```
 
 CI uses `pnpm --filter @cheddr/db db:migrate:ci` with `DATABASE_URL` from the workflow environment.
+
+## API: ops scripts (local / prod)
+
+With `DATABASE_URL` set (e.g. `apps/api/.env.local`):
+
+```bash
+# Rebuild Redis leaderboard from Postgres `users.elo` (Clerk users only)
+pnpm --filter @cheddr/api exec tsx src/scripts/rebuildLeaderboard.ts
+
+# Recompute ranked aggregate counters on `users` from `games` (does not change ELO)
+pnpm --filter @cheddr/api reconcile:stats
+# Log drift only; exit 1 if any mismatch (useful for cron alerts)
+pnpm --filter @cheddr/api reconcile:stats -- --dry-run
+```
 
 ## Mobile PR workflow (`mobile.yml`)
 
