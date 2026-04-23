@@ -111,35 +111,33 @@ export function Board({
           hintCell={hintCell}
         />
       </View>
-      {showAiPulse ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: dimColor,
-            zIndex: 1,
-          }}
-        />
-      ) : null}
-      {showAiPulse ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 2,
-          }}
-        >
-          <AiThinkingPulse active size={side} />
-        </View>
-      ) : null}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: dimColor,
+          zIndex: 1,
+          opacity: showAiPulse ? 1 : 0,
+        }}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 2,
+          opacity: showAiPulse ? 1 : 0,
+        }}
+      >
+        <AiThinkingPulse active={showAiPulse} size={side} />
+      </View>
       <View
         accessible={false}
         accessibilityLabel="Game board"

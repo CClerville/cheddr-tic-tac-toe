@@ -408,7 +408,9 @@ describe("AI routes", () => {
     const lines = await deps.redis.lrange<string>(listKey, 0, -1);
     expect(lines?.length).toBeGreaterThan(0);
     const last = JSON.parse(lines![lines!.length - 1]!) as { text: string };
-    expect(last.text).toBe(commentaryFallbackLine([5, 0]));
+    expect(last.text).toBe(
+      commentaryFallbackLine([5, 0], { status: "in_progress" }),
+    );
     expect(last.text).not.toContain("center");
   });
 });

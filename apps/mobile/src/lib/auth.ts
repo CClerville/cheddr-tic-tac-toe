@@ -25,11 +25,30 @@ export interface AnonIdentity {
   expiresAt: number;
 }
 
-export async function ensureAnonIdentity(): Promise<AnonIdentity> {
-  const existing = await readCachedAnon();
-  const now = Math.floor(Date.now() / 1000);
-  if (existing && existing.expiresAt - now > REFRESH_THRESHOLD_SECONDS) {
-    return existing;
+export interface EnsureAnonOptions {
+  /**
+   * Skip the cache and always mint a fresh token. Use after the server
+   * rejects the cached token (e.g. JWT secret rotated, user row wiped,
+   * or the token actually expired earlier than our cached `expiresAt`
+   * claimed). Without this, a stale-but-not-yet-expired-by-client-clock
+   * token would be returned again and the retry would loop on 401.
+   */
+  force?: boolean;
+}
+
+export async function ensureAnonIdentity(
+  options: EnsureAnonOptions = {},
+): Promise<AnonIdentity> {
+  if (!options.force) {
+    const existing = await readCachedAnon();
+    const now = Math.floor(Date.now() / 1000);
+    if (existing && existing.expiresAt - now > REFRESH_THRESHOLD_SECONDS) {
+      return existing;
+    }
+  } else {
+    // Drop the rejected token so any other reader (e.g. a parallel
+    // `getAnonToken()` call) doesn't pick it up between mint and persist.
+    await clearAnon();
   }
 
   const deviceId = await ensureDeviceId();

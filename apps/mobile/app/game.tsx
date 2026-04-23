@@ -3,9 +3,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import { Board } from "@/components/Board";
 import { CommentaryBubble } from "@/components/ai/CommentaryBubble";
 import { HintButton } from "@/components/ai/HintButton";
+import { Board } from "@/components/Board";
 import { GameStatus } from "@/components/GameStatus";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
@@ -18,6 +18,10 @@ import { PersonalitySchema, type Personality } from "@cheddr/api-types";
 import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
 
 const VALID: Difficulty[] = ["beginner", "intermediate", "expert"];
+
+// Reserved row height for the HintButton (PressableScale with text-sm + py-2).
+// Keeping it constant prevents layout shift when the button conditionally renders.
+const HINT_ROW_HEIGHT_PT = 40;
 
 function parseDifficulty(value: unknown): Difficulty {
   if (typeof value === "string" && (VALID as string[]).includes(value)) {
@@ -152,7 +156,12 @@ function ServerGameScreen({
         currentPlayer={ranked.gameState.currentPlayer}
         aiThinking={ranked.phase === "ai_thinking"}
       />
-      <View className="flex-row justify-center gap-3 w-full max-w-sm">
+      {/* Fixed height keeps the board from jumping when the HintButton
+          mounts/unmounts as turn ownership flips between player and AI. */}
+      <View
+        className="flex-row justify-center items-center gap-3 w-full max-w-sm"
+        style={{ height: HINT_ROW_HEIGHT_PT }}
+      >
         <HintButton
           sessionId={ranked.sessionId}
           canHint={canHint}
@@ -203,16 +212,13 @@ function Shell({
 }) {
   return (
     <ScreenContainer>
-      <View className="px-4 pt-2 pb-2">
+      <View className="px-4 pb-2">
         <GlassPanel variant="panel" style={{ width: "100%" }}>
           <ScreenHeader
             title={title}
             titleClassName="capitalize"
             leading={
-              <BackButton
-                label="Quit"
-                onPress={() => router.replace("/")}
-              />
+              <BackButton label="Quit" onPress={() => router.replace("/")} />
             }
             trailing={
               <Pressable
@@ -247,7 +253,11 @@ function Shell({
             justifyContent: "center",
             alignItems: "center",
             gap: 24,
-            paddingVertical: 8,
+            paddingTop: 8,
+            // Reserve room for the absolute-positioned CommentaryBubble (overlay
+            // screens only) so streaming text can grow without overlapping the
+            // board. Local screens keep tight centering.
+            paddingBottom: overlay ? 140 : 8,
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -268,7 +278,8 @@ function useGameOverNavigator(args: {
   gameId: string | null;
   personality: Personality;
 }) {
-  const { phase, result, difficulty, eloDelta, ranked, gameId, personality } = args;
+  const { phase, result, difficulty, eloDelta, ranked, gameId, personality } =
+    args;
   const navigatedRef = useRef(false);
 
   useEffect(() => {

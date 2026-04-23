@@ -41,20 +41,28 @@ async function getAnonToken(): Promise<string | null> {
  * two queries firing at once) coalesce into a single mint POST.
  */
 let inflightMint: Promise<string | null> | null = null;
-async function mintAnonInline(): Promise<string | null> {
-  if (inflightMint) return inflightMint;
-  inflightMint = (async () => {
+async function mintAnonInline(force = false): Promise<string | null> {
+  // We deliberately do NOT coalesce a `force` mint with an in-flight
+  // non-force mint: the in-flight one may resolve to the same cached
+  // (rejected) token that triggered our retry. Forced callers always
+  // get a fresh round-trip.
+  if (!force && inflightMint) return inflightMint;
+  const p = (async () => {
     try {
       const { ensureAnonIdentity } = await import("./auth");
-      const id = await ensureAnonIdentity();
+      const id = await ensureAnonIdentity({ force });
       return id?.token ?? null;
     } catch {
       return null;
-    } finally {
-      inflightMint = null;
     }
   })();
-  return inflightMint;
+  if (!force) {
+    inflightMint = p;
+    p.finally(() => {
+      if (inflightMint === p) inflightMint = null;
+    });
+  }
+  return p;
 }
 
 type ResolvedBearer = {
@@ -131,8 +139,13 @@ export async function authFetch(
   // /auth/anon call (would loop) or when the failed request used a Clerk
   // token (the server rejection is meaningful and re-minting anon won't
   // help — the caller needs to handle re-auth).
+  //
+  // Force a real mint here: the cached token's client-side `expiresAt`
+  // can outlive the server's acceptance (rotated JWT secret, wiped user
+  // row, server-side clock skew). A non-forcing call would just hand
+  // the same dead token back and we'd loop on 401.
   if (res.status === 401 && !isAuthAnon && bearer.source !== "clerk") {
-    const fresh = await mintAnonInline();
+    const fresh = await mintAnonInline(true);
     if (fresh && fresh !== bearer.token) {
       return await send(fresh);
     }
@@ -176,7 +189,7 @@ export async function apiPostStreaming(
   const bearer = await resolveBearer(isAuthAnon);
   let res = await send(bearer.token);
   if (res.status === 401 && !isAuthAnon && bearer.source !== "clerk") {
-    const fresh = await mintAnonInline();
+    const fresh = await mintAnonInline(true);
     if (fresh && fresh !== bearer.token) {
       res = await send(fresh);
     }
