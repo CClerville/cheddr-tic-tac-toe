@@ -22,7 +22,8 @@ import { z } from "zod";
 
 import { resolveLanguageModel } from "../lib/ai/gateway.js";
 import { formatMoveHistory, serializeBoard } from "../lib/ai/board.js";
-import { personalitySystemPrompt } from "../lib/ai/personalities.js";
+import { buildAiSystemPrompt } from "../lib/ai/personalities.js";
+import { getPlayerName } from "../lib/users.js";
 import { resolveAiLimiters } from "../lib/ai/rateLimit.js";
 import {
   dailyTokenBudget,
@@ -152,8 +153,13 @@ export function createAiRoutes(deps: AppDeps) {
       }
 
       const personality = session.personality ?? "coach";
+      const playerName = await getPlayerName(db, identity.id);
       const model = resolveLanguageModel(deps);
-      const system = personalitySystemPrompt(personality);
+      const system = buildAiSystemPrompt({
+        personality,
+        playerName,
+        purpose: "commentary",
+      });
       const userPrompt = [
         `Board (cells 0-8, rows top-to-bottom):`,
         serializeBoard(session.board),
@@ -162,9 +168,9 @@ export function createAiRoutes(deps: AppDeps) {
         formatMoveHistory(session.moveHistory),
         ``,
         `Game result JSON: ${JSON.stringify(session.result)}`,
-        `Trigger: ${body.trigger}`,
+        `Trigger: ${body.trigger}.`,
         ``,
-        `Respond with one or two short sentences of live commentary only. No bullet lists.`,
+        `Comment on this position from your perspective as Cheddr. Speak to the player directly.`,
       ].join("\n");
 
       const rid = c.get("requestId");
@@ -242,10 +248,16 @@ export function createAiRoutes(deps: AppDeps) {
       const legal = getValidMoves(session.board);
       const legalSet = new Set<Position>(legal);
 
+      const playerName = await getPlayerName(db, identity.id);
       const model = resolveLanguageModel(deps);
+      const playerLabel = playerName ?? "the player";
       const system = [
-        personalitySystemPrompt(session.personality ?? "coach"),
-        `Suggest a single cell index 0-8 for the human (X) to play next.`,
+        buildAiSystemPrompt({
+          personality: session.personality ?? "coach",
+          playerName,
+          purpose: "hint",
+        }),
+        `Suggest a single cell index 0-8 for ${playerLabel} (X) to play next.`,
         `Legal moves right now: ${legal.join(", ")}.`,
         `You MUST pick one of the legal moves.`,
       ].join(" ");
@@ -281,7 +293,7 @@ export function createAiRoutes(deps: AppDeps) {
           fellBackToEngine = true;
           position = getBestMove(engineState);
           reasoning =
-            "The model suggested an illegal move; using the engine's strongest legal reply instead.";
+            "Cheddr glitched on that pick — grabbing the engine's strongest legal move instead.";
           confidence = 0;
         } else {
           position = object.position;
@@ -298,7 +310,7 @@ export function createAiRoutes(deps: AppDeps) {
         fellBackToEngine = true;
         position = getBestMove(engineState);
         reasoning =
-          "AI hint is temporarily unavailable; using the engine's strongest legal move instead.";
+          "Cheddr's momentarily offline — defaulting to the engine's best legal move.";
         confidence = 0;
       }
 
@@ -355,17 +367,24 @@ export function createAiRoutes(deps: AppDeps) {
         throw new HTTPException(402, { message: "ai_quota_exceeded" });
       }
 
+      const playerName = await getPlayerName(db, identity.id);
       const model = resolveLanguageModel(deps);
+      const playerLabel = playerName ?? "The player";
       const system = [
-        `You analyze a completed Misere tic-tac-toe game.`,
-        `Human is X, AI is O. Three in a row loses for the player who completes the line.`,
-        `The stored result is from the human's perspective: win / loss / draw.`,
+        buildAiSystemPrompt({
+          personality: "coach",
+          playerName,
+          purpose: "analysis",
+        }),
+        `You are reviewing a finished game. You played O. ${playerLabel} played X.`,
+        `Three in a row loses for whoever completes the line.`,
+        `The stored result is from the player's perspective: win / loss / draw.`,
         `Return JSON matching the schema: a short summary and a list of turns with moveIndex 1..n matching each played move in order, severity, and a one-line comment.`,
       ].join(" ");
 
       const userPrompt = [
         `Difficulty: ${game.difficulty}`,
-        `Outcome for human: ${game.result}`,
+        `Outcome for ${playerLabel} (win / loss / draw from their perspective): ${game.result}`,
         `Move sequence (0-8 cells): ${JSON.stringify(game.moveHistory)}`,
       ].join("\n");
 

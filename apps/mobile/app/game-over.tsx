@@ -12,8 +12,8 @@ import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { haptics } from "@/lib/haptics";
 import type { GameOutcome } from "@/storage/gameRepository";
-import { motion } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
+import { motion } from "@/theme/tokens";
 import { PersonalitySchema, type Personality } from "@cheddr/api-types";
 import type { Difficulty } from "@cheddr/game-engine";
 
@@ -21,14 +21,20 @@ const VALID_OUTCOMES: GameOutcome[] = ["win", "loss", "draw"];
 const VALID_DIFFICULTY: Difficulty[] = ["beginner", "intermediate", "expert"];
 
 function parseOutcome(value: unknown): GameOutcome {
-  if (typeof value === "string" && (VALID_OUTCOMES as string[]).includes(value)) {
+  if (
+    typeof value === "string" &&
+    (VALID_OUTCOMES as string[]).includes(value)
+  ) {
     return value as GameOutcome;
   }
   return "draw";
 }
 
 function parseDifficulty(value: unknown): Difficulty {
-  if (typeof value === "string" && (VALID_DIFFICULTY as string[]).includes(value)) {
+  if (
+    typeof value === "string" &&
+    (VALID_DIFFICULTY as string[]).includes(value)
+  ) {
     return value as Difficulty;
   }
   return "intermediate";
@@ -37,7 +43,11 @@ function parseDifficulty(value: unknown): Difficulty {
 function parseGameId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const id = value.trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      id,
+    )
+  ) {
     return null;
   }
   return id;
@@ -54,7 +64,7 @@ const COPY: Record<
 > = {
   win: {
     title: "You win!",
-    subtitle: "The AI completed three-in-a-row.",
+    subtitle: "Cheddar completed three-in-a-row.",
     emoji: "★",
   },
   loss: {

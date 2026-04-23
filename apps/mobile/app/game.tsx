@@ -159,6 +159,7 @@ function RankedGameScreen({
         sessionId={ranked.sessionId}
         moveFingerprint={moveFingerprint}
         gameOver={ranked.isGameOver}
+        personality={personality}
       />
     </Shell>
   );

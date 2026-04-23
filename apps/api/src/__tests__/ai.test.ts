@@ -3,6 +3,8 @@ import { MockLanguageModelV3 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
+import type { LanguageModelV3GenerateResult } from "@ai-sdk/provider";
+
 import { createApp } from "../app.js";
 import { createMemoryAiLimiters } from "../lib/ai/rateLimit.js";
 import { createAiRoutes } from "../routes/ai.js";
@@ -255,5 +257,56 @@ describe("AI routes", () => {
 
     await new Promise((r) => setImmediate(r));
     expect(unhandled).toEqual([]);
+  });
+
+  it("POST /ai/hint passes player displayName into the model system prompt", async () => {
+    const hintJson = JSON.stringify({
+      position: 4,
+      reasoning: "Take the center.",
+      confidence: 0.9,
+    });
+
+    const mock = new MockLanguageModelV3({
+      doGenerate: async (): Promise<LanguageModelV3GenerateResult> => ({
+        content: [{ type: "text", text: hintJson }],
+        finishReason: { unified: "stop", raw: undefined },
+        usage: {
+          inputTokens: { total: 1, noCache: 1 },
+          outputTokens: { total: 1, text: 1 },
+        },
+        warnings: [],
+        rawCall: { rawPrompt: null, rawSettings: {} },
+      }),
+    });
+
+    const { harness, app, deps } = await buildTestApp({ mockModel: mock });
+    const { token, userId } = await harness.signInAnon();
+
+    await deps.db
+      .update(schema.users)
+      .set({ displayName: "Sam" })
+      .where(eq(schema.users.id, userId));
+
+    const { sessionId } = await startSession(app, token);
+
+    const res = await app.request("/ai/hint", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId }),
+    });
+    expect(res.status).toBe(200);
+
+    expect(mock.doGenerateCalls.length).toBeGreaterThan(0);
+    const firstCall = mock.doGenerateCalls[0];
+    const promptBlob = JSON.stringify(firstCall);
+    // Name appears in Cheddr's system prompt and in the legal-move hint line.
+    expect(promptBlob).toContain("Sam");
+    const systemChunks = firstCall.prompt.filter(
+      (p) => p.role === "system",
+    );
+    expect(JSON.stringify(systemChunks)).toContain("Sam");
   });
 });
