@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
+import type { ZodType } from "zod";
 
 import { KEYS, storage } from "./secureStore";
 
@@ -206,6 +207,21 @@ export async function apiPost<T, B = unknown>(
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
+}
+
+/** POST + runtime Zod validation (catches wire drift early in dev). */
+export async function apiPostValidated<T, B = unknown>(
+  path: string,
+  body: B | undefined,
+  schema: ZodType<T>,
+): Promise<T> {
+  const res = await authFetch(path, {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw await toApiError(res);
+  const json: unknown = await res.json();
+  return schema.parse(json);
 }
 
 export async function apiPatch<T, B = unknown>(

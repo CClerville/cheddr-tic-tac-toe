@@ -78,6 +78,9 @@ export function useGame(options: UseGameOptions | Difficulty = {}) {
         if (saved) {
           setGameState(saved);
           setDifficulty(saved.difficulty);
+          if (saved.result.status !== "in_progress") {
+            recordedRef.current = true;
+          }
           setPhase(derivePhase(saved));
         } else {
           setPhase(derivePhase(gameState));

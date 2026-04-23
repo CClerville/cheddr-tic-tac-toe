@@ -40,12 +40,14 @@ export async function consumeEloBudget(
   delta: number,
 ): Promise<number> {
   if (delta <= 0) return delta;
-  const used = (await redis.get<number>(eloBudgetKey(userId))) ?? 0;
-  const remaining = Math.max(0, HOURLY_ELO_BUDGET - Number(used));
-  const grant = Math.min(remaining, delta);
-  if (grant > 0) {
-    const next = Number(used) + grant;
-    await redis.set(eloBudgetKey(userId), next, { ex: 3600 });
+  const key = eloBudgetKey(userId);
+  const nextTotal = await redis.incrby(key, delta);
+  if (nextTotal === delta) {
+    await redis.expire(key, 3600);
   }
-  return grant;
+  const overshoot = Math.max(0, nextTotal - HOURLY_ELO_BUDGET);
+  if (overshoot > 0) {
+    await redis.incrby(key, -overshoot);
+  }
+  return Math.max(0, delta - overshoot);
 }

@@ -4,8 +4,15 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3005),
 
-  /** Comma-separated list, or `*` for any. */
-  ALLOWED_ORIGINS: z.string().default("*"),
+  /**
+   * Comma-separated browser origins allowed for CORS. Empty string means
+   * no cross-origin reflection (safe default for a bearer-token JSON API).
+   * Mobile native clients do not use CORS.
+   */
+  ALLOWED_ORIGINS: z.string().default(""),
+
+  /** Comma-separated `azp` values passed to Clerk `verifyToken` (defense in depth). */
+  CLERK_AUTHORIZED_PARTIES: z.string().optional(),
 
   DATABASE_URL: z.string().url().optional(),
 
@@ -34,6 +41,8 @@ const EnvSchema = z.object({
   AI_MODEL: z.string().optional(),
   /** Hard cap on total tokens per user per UTC day (all AI features). */
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().optional(),
+  /** Aggregate cap across all users per UTC day (billing / abuse safety). */
+  AI_GLOBAL_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

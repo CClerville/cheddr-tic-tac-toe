@@ -153,9 +153,10 @@ export function createFakeRedis(): FakeRedis {
     },
 
     async incrby(key, by) {
+      const entry = kv.get(key);
       const cur = Number(readKv(key) ?? 0);
       const next = cur + by;
-      kv.set(key, { value: next, expiresAt: kv.get(key)?.expiresAt ?? null });
+      kv.set(key, { value: next, expiresAt: entry?.expiresAt ?? null });
       return next;
     },
 

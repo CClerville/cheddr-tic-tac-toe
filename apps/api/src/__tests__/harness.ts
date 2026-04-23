@@ -1,8 +1,13 @@
+import { Buffer } from "node:buffer";
+
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { schema, type Database } from "@cheddr/db";
 
-import { createMemoryAiLimiters } from "../lib/ai/rateLimit.js";
+import {
+  createMemoryAiLimiters,
+  createMemoryAnonMintLimiter,
+} from "../lib/ai/rateLimit.js";
 import type { AppDeps } from "../types.js";
 import { mintAnonToken } from "../lib/anonToken.js";
 import { ensureUser } from "../middleware/auth.js";
@@ -56,6 +61,20 @@ export interface TestHarness {
   db: Database;
   /** Mint an anon token tied to a fresh anon user (which is created in the DB). */
   signInAnon(): Promise<{ token: string; userId: string }>;
+  /**
+   * RS256-shaped JWT for Clerk auth tests. Pair with `vi.mock` on
+   * `verifyClerkSessionToken` and `createHarness({ clerkSecretKey: "…" })`.
+   */
+  signInClerk(userId?: string): Promise<{ token: string; userId: string }>;
+}
+
+/** JWT with RS256 + kid so `auth` attempts Clerk verification. */
+export function fakeClerkSessionJwt(sub: string): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "RS256", kid: "ins_testkeyid123456789" }),
+  ).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ sub })).toString("base64url");
+  return `${header}.${payload}.invalid-signature`;
 }
 
 export type CreateHarnessOptions = {
@@ -73,6 +92,7 @@ export async function createHarness(options?: CreateHarnessOptions): Promise<Tes
     clerkSecretKey: options?.clerkSecretKey !== undefined ? options.clerkSecretKey : null,
     jwtSecret,
     aiLimiters: createMemoryAiLimiters(),
+    anonMintLimiter: createMemoryAnonMintLimiter(),
   };
 
   return {
@@ -84,6 +104,10 @@ export async function createHarness(options?: CreateHarnessOptions): Promise<Tes
       await ensureUser(db, userId, "anon");
       const { token } = await mintAnonToken(jwtSecret, userId);
       return { token, userId };
+    },
+    async signInClerk(userId = `user_clerk_${crypto.randomUUID()}`) {
+      await ensureUser(db, userId, "clerk");
+      return { token: fakeClerkSessionJwt(userId), userId };
     },
   };
 }

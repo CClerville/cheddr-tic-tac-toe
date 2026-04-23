@@ -14,7 +14,7 @@ import { useGame } from "@/hooks/useGame";
 import { useRankedGame } from "@/hooks/useRankedGame";
 import { outcomeFromResult } from "@/storage/gameRepository";
 import { PersonalitySchema, type Personality } from "@cheddr/api-types";
-import type { Difficulty, Position } from "@cheddr/game-engine";
+import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
 
 const VALID: Difficulty[] = ["beginner", "intermediate", "expert"];
 
@@ -225,7 +225,7 @@ function Shell({
 
 function useGameOverNavigator(args: {
   phase: string;
-  result: { status: string };
+  result: GameResult;
   difficulty: Difficulty;
   eloDelta: number | null;
   ranked: boolean;
@@ -242,9 +242,7 @@ function useGameOverNavigator(args: {
     }
     if (navigatedRef.current) return;
     navigatedRef.current = true;
-    const outcome =
-      outcomeFromResult(result as never) ??
-      ("draw" as const);
+    const outcome = outcomeFromResult(result) ?? ("draw" as const);
     const timer = setTimeout(() => {
       router.push({
         pathname: "/game-over",

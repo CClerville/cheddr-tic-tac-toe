@@ -10,7 +10,7 @@ import type {
 } from "@cheddr/api-types";
 import type { Difficulty, GameState, Position } from "@cheddr/game-engine";
 
-import { ApiError, apiPost } from "@/lib/api";
+import { ApiError, apiGet, apiPost } from "@/lib/api";
 import { haptics } from "@/lib/haptics";
 import { ensureAnonIdentity } from "@/lib/auth";
 import { Sentry } from "@/lib/sentry";
@@ -163,13 +163,48 @@ export function useRankedGame(options: UseRankedGameOptions) {
           gameId: res.gameId ?? null,
         });
       } catch (err) {
+        const isClientIllegalMove =
+          err instanceof ApiError &&
+          err.status === 400 &&
+          /invalid|illegal|occupied|not allowed/i.test(err.message);
+        if (isClientIllegalMove) {
+          haptics.illegalTap();
+          setState((s) => ({
+            ...s,
+            loading: false,
+            phase: "player_turn",
+            error: err.message,
+          }));
+          return;
+        }
         haptics.illegalTap();
-        setState((s) => ({
-          ...s,
-          loading: false,
-          phase: "player_turn",
-          error: err instanceof ApiError ? err.message : "Move failed",
-        }));
+        try {
+          const dto = await apiGet<GameStateDTO>(
+            `/game/${state.sessionId}/state`,
+          );
+          const engine = dtoToEngine(dto);
+          setState({
+            sessionId: state.sessionId,
+            gameState: engine,
+            phase: derivePhase(engine),
+            loading: false,
+            error:
+              err instanceof ApiError
+                ? err.message
+                : "Move failed — synced with server",
+            outcome: null,
+            eloDelta: null,
+            gameId: null,
+          });
+        } catch {
+          setState((s) => ({
+            ...s,
+            loading: false,
+            phase: "player_turn",
+            error:
+              err instanceof ApiError ? err.message : "Move failed",
+          }));
+        }
       }
     },
     [state.sessionId, state.phase, difficulty, invalidateProfile],
@@ -195,11 +230,31 @@ export function useRankedGame(options: UseRankedGameOptions) {
       });
       invalidateProfile();
     } catch (err) {
-      setState((s) => ({
-        ...s,
-        loading: false,
-        error: err instanceof ApiError ? err.message : "Resign failed",
-      }));
+      try {
+        const dto = await apiGet<GameStateDTO>(
+          `/game/${state.sessionId}/state`,
+        );
+        const engine = dtoToEngine(dto);
+        setState({
+          sessionId: state.sessionId,
+          gameState: engine,
+          phase: derivePhase(engine),
+          loading: false,
+          error:
+            err instanceof ApiError
+              ? err.message
+              : "Resign failed — synced with server",
+          outcome: null,
+          eloDelta: null,
+          gameId: null,
+        });
+      } catch {
+        setState((s) => ({
+          ...s,
+          loading: false,
+          error: err instanceof ApiError ? err.message : "Resign failed",
+        }));
+      }
     }
   }, [state.sessionId, invalidateProfile]);
 

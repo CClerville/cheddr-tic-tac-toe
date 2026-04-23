@@ -14,9 +14,9 @@ describe("createApp / health", () => {
   it("echoes inbound x-request-id back via response header", async () => {
     const app = createApp();
     const res = await app.request("/health", {
-      headers: { "x-request-id": "abc-123" },
+      headers: { "x-request-id": "abc-1234" },
     });
-    expect(res.headers.get("x-request-id")).toBe("abc-123");
+    expect(res.headers.get("x-request-id")).toBe("abc-1234");
   });
 
   it("ignores oversized inbound x-request-id and generates a new one", async () => {

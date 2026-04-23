@@ -9,6 +9,8 @@ export interface AnonTokenPayload {
   sub: string;
   iat: number;
   exp: number;
+  /** Device id from mint request, when bound. */
+  did?: string;
 }
 
 function key(secret: string): Uint8Array {
@@ -24,10 +26,13 @@ export async function mintAnonToken(
   secret: string,
   subject: string,
   ttlSeconds: number = TTL_SECONDS,
+  deviceId?: string,
 ): Promise<{ token: string; expiresAt: number }> {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + ttlSeconds;
-  const token = await new SignJWT({})
+  const claims =
+    deviceId !== undefined && deviceId.length > 0 ? { did: deviceId } : {};
+  const token = await new SignJWT(claims)
     .setProtectedHeader({ alg: ALG })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -53,7 +58,11 @@ export async function verifyAnonToken(
   if (typeof payload.iat !== "number" || typeof payload.exp !== "number") {
     throw new Error("Invalid anon token timestamps");
   }
-  return { sub: payload.sub, iat: payload.iat, exp: payload.exp };
+  const did =
+    typeof payload.did === "string" && payload.did.length > 0
+      ? payload.did
+      : undefined;
+  return { sub: payload.sub, iat: payload.iat, exp: payload.exp, did };
 }
 
 /** Generate a fresh anon user ID. */

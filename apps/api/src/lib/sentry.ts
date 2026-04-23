@@ -22,6 +22,13 @@ export function initSentry(): void {
     dsn: env.SENTRY_DSN,
     environment: env.NODE_ENV,
     tracesSampleRate: env.NODE_ENV === "production" ? 0.1 : 1.0,
+    beforeSend(event) {
+      if (event.request?.headers) {
+        delete event.request.headers["authorization"];
+        delete event.request.headers["cookie"];
+      }
+      return event;
+    },
   });
   initialised = true;
 }

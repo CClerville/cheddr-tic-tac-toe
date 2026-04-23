@@ -3,7 +3,7 @@ import type { Identity } from "@cheddr/api-types";
 import type { Database } from "@cheddr/db";
 import type { Redis } from "@upstash/redis";
 
-import type { AiLimiters } from "./lib/ai/rateLimit.js";
+import type { AiLimiters, AnonMintLimiter } from "./lib/ai/rateLimit.js";
 
 /**
  * Hono context bindings. `Variables` are values set by middleware (e.g.
@@ -34,6 +34,11 @@ export interface AppDeps {
    * `Ratelimit` is constructed from `redis`.
    */
   aiLimiters?: AiLimiters;
+  /**
+   * Optional anon mint rate limiters (tests). When omitted, Upstash
+   * `Ratelimit` is built from `redis`.
+   */
+  anonMintLimiter?: AnonMintLimiter;
   /**
    * Override the default Gateway language model (tests).
    */

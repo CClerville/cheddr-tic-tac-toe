@@ -15,10 +15,11 @@ import type { AppBindings } from "./types.js";
 export function createApp() {
   const env = getEnv();
 
-  const allowedOrigins =
-    env.ALLOWED_ORIGINS === "*"
-      ? "*"
-      : env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
+  const trimmed = env.ALLOWED_ORIGINS.split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const allowWildcard = trimmed.includes("*");
+  const allowList = trimmed.filter((o) => o !== "*");
 
   const app = new Hono<AppBindings>()
     .use("*", requestId())
@@ -26,7 +27,12 @@ export function createApp() {
     .use(
       "*",
       cors({
-        origin: allowedOrigins,
+        origin: (requestOrigin) => {
+          if (allowWildcard) return requestOrigin ?? "*";
+          if (allowList.length === 0) return null;
+          if (!requestOrigin) return null;
+          return allowList.includes(requestOrigin) ? requestOrigin : null;
+        },
         allowHeaders: ["Authorization", "Content-Type"],
         allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         maxAge: 600,

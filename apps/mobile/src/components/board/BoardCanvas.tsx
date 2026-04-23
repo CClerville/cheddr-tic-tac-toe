@@ -7,7 +7,7 @@ import {
   Skia,
   vec,
 } from "@shopify/react-native-skia";
-import { useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { View } from "react-native";
 import {
   Easing,
@@ -23,18 +23,13 @@ import { motion, type ThemePalette } from "@/theme/tokens";
 import { WIN_LINES } from "@cheddr/game-engine";
 import type { Board, GameResult, Position } from "@cheddr/game-engine";
 
-import {
-  ALL_POSITIONS,
-  createBoardGeometry,
-  getCellRect,
-  getWinLineCoords,
-} from "./boardGeometry";
+import { ALL_POSITIONS, getCellRect, getWinLineCoords } from "./boardGeometry";
 import type { BoardGeometry } from "./boardGeometry";
 
 interface BoardCanvasProps {
   board: Board;
   result: GameResult;
-  size: number;
+  geometry: BoardGeometry;
   /** Cell currently pressed (visual depth); null when none. */
   pressedCell: Position | null;
   /** Optional AI hint ring on an empty cell. */
@@ -162,6 +157,7 @@ interface XGlyphProps {
 function XGlyph({ cx, cy, radius, strokeWidth, color, glow }: XGlyphProps) {
   const reduceMotion = useReducedMotion();
   const progress = useSharedValue(reduceMotion ? 1 : 0);
+  const introPlayedRef = useRef(false);
   const path1 = useMemo(() => {
     const p = Skia.Path.Make();
     p.moveTo(cx - radius, cy - radius);
@@ -180,6 +176,11 @@ function XGlyph({ cx, cy, radius, strokeWidth, color, glow }: XGlyphProps) {
       progress.value = 1;
       return;
     }
+    if (introPlayedRef.current) {
+      progress.value = 1;
+      return;
+    }
+    introPlayedRef.current = true;
     progress.value = 0;
     progress.value = withTiming(1, {
       duration: motion.base,
@@ -239,6 +240,7 @@ interface OGlyphProps {
 function OGlyph({ cx, cy, radius, strokeWidth, color, glow }: OGlyphProps) {
   const reduceMotion = useReducedMotion();
   const progress = useSharedValue(reduceMotion ? 1 : 0);
+  const introPlayedRef = useRef(false);
   const path = useMemo(() => {
     const p = Skia.Path.Make();
     const r = Skia.XYWHRect(cx - radius, cy - radius, radius * 2, radius * 2);
@@ -251,6 +253,11 @@ function OGlyph({ cx, cy, radius, strokeWidth, color, glow }: OGlyphProps) {
       progress.value = 1;
       return;
     }
+    if (introPlayedRef.current) {
+      progress.value = 1;
+      return;
+    }
+    introPlayedRef.current = true;
     progress.value = 0;
     progress.value = withTiming(1, {
       duration: motion.base,
@@ -376,15 +383,15 @@ function WinCelebrationLine({
   );
 }
 
-export function BoardCanvas({
+export const BoardCanvas = memo(function BoardCanvas({
   board,
   result,
-  size,
+  geometry,
   pressedCell,
   hintCell = null,
 }: BoardCanvasProps) {
   const { palette, resolved } = useTheme();
-  const geometry = createBoardGeometry(size);
+  const size = geometry.size;
   const lossTriple = findLossTriple(board, result);
   const winLineCoords = lossTriple ? getWinLineCoords(geometry, lossTriple) : null;
   const playerWon = result.status === "loss" && result.loser === "O";
@@ -477,4 +484,4 @@ export function BoardCanvas({
       </Canvas>
     </View>
   );
-}
+});
