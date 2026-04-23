@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# React Native / Expo's Metro bundler cannot traverse pnpm's symlinked
+# node_modules to resolve transitive deps (e.g. expo-modules-core,
+# react-native-css-interop, @babel/runtime). Hoisting everything to the
+# workspace root keeps Metro happy and matches the standard Expo + pnpm
+# monorepo setup.
+shamefullyHoist: true
