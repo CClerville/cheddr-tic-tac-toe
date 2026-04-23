@@ -12,7 +12,7 @@ export type CommentaryValidationReason =
   | "stale_cell";
 
 export type CommentaryValidationResult =
-  | { ok: true }
+  | { ok: true; reason?: undefined }
   | { ok: false; reason: CommentaryValidationReason };
 
 function escapeRegexToken(s: string): string {
