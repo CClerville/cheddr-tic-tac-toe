@@ -22,6 +22,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: config.name ?? "Cheddr Tic-Tac-Toe",
     slug: config.slug ?? "cheddr-tic-tac-toe",
     runtimeVersion: { policy: "appVersion" },
+    /** App Store export compliance; standard TLS only → false. */
+    ios: {
+      ...config.ios,
+      infoPlist: {
+        ...(config.ios?.infoPlist as Record<string, unknown> | undefined),
+        ITSAppUsesNonExemptEncryption: false,
+      },
+    },
     ...(projectId
       ? {
           updates: {
