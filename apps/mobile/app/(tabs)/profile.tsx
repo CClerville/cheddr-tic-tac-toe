@@ -1,15 +1,9 @@
 import { useScrollToTop } from "@react-navigation/native";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  InteractionManager,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth, useClerk } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
 
@@ -17,102 +11,79 @@ import { CombinedStatsPanel } from "@/components/stats/CombinedStatsPanel";
 import { DifficultyBreakdown } from "@/components/profile/DifficultyBreakdown";
 import { EditProfileSheet } from "@/components/profile/EditProfileSheet";
 import { PersonalityBreakdown } from "@/components/profile/PersonalityBreakdown";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
+import { ProfileSettingsCard } from "@/components/profile/ProfileSettingsCard";
+import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
+import { SignedOutProfile } from "@/components/profile/SignedOutProfile";
+import { SignOutSheet } from "@/components/profile/SignOutSheet";
 import { PressableScale } from "@/components/PressableScale";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { BottomSheet } from "@/components/ui/BottomSheet";
 import { GlassPanel } from "@/components/ui/GlassPanel";
-import {
-  Skeleton,
-  SkeletonCircle,
-  SkeletonGroup,
-} from "@/components/ui/Skeleton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { useTabBarScroll } from "@/components/ui/TabBarScrollContext";
 import { WinRateRing } from "@/components/ui/WinRateRing";
 import { useCombinedStats } from "@/hooks/useCombinedStats";
 import { useLocalGameStats } from "@/hooks/useLocalGameStats";
+import { useProfile } from "@/hooks/useProfile";
 import { useUserStats } from "@/hooks/useUserStats";
-import { apiGet } from "@/lib/api";
 import { useAuthBootstrap } from "@/providers/AuthBootstrap";
-import { type GameStats } from "@/storage/gameRepository";
 import { tabBar } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
-import { ProfileSchema, type Profile } from "@cheddr/api-types";
 
-const SIGNED_IN_TABS = [
-  "Overview",
-  "By Difficulty",
-  "By Personality",
-] as const;
-type SignedInTab = (typeof SIGNED_IN_TABS)[number];
-type ProfileTab = SignedInTab;
-
-function initialsFrom(name: string | null | undefined): string {
-  if (!name || !name.trim()) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-}
+// Tab identifiers are deliberately decoupled from the user-visible labels
+// so we can localize the labels without rewriting the equality checks
+// that drive which sub-panel renders.
+const SIGNED_IN_TAB_IDS = ["overview", "byDifficulty", "byPersonality"] as const;
+type SignedInTabId = (typeof SIGNED_IN_TAB_IDS)[number];
+type ProfileTabId = SignedInTabId;
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
   const { onScroll, resetVisibility } = useTabBarScroll();
-  const { isSignedIn, isLoaded, userId } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const { ready: authReady } = useAuthBootstrap();
   const { signOut } = useClerk();
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomPad =
-    tabBar.height + insets.bottom + 24;
+  const bottomPad = tabBar.height + insets.bottom + 24;
 
-  const [fetchReady, setFetchReady] = useState(false);
-  const [tab, setTab] = useState<ProfileTab>("Overview");
+  const tabLabels = useMemo(
+    () => ({
+      overview: t("profile.tabs.overview"),
+      byDifficulty: t("profile.tabs.byDifficulty"),
+      byPersonality: t("profile.tabs.byPersonality"),
+    }),
+    [t],
+  );
+  const tabsForSegmented = useMemo(
+    () => SIGNED_IN_TAB_IDS.map((id) => tabLabels[id]),
+    [tabLabels],
+  );
+
+  const [tab, setTab] = useState<ProfileTabId>("overview");
   const { stats: localStats } = useLocalGameStats();
   const { combined, hasRanked } = useCombinedStats();
   const { data: userStats } = useUserStats();
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      setFetchReady(true);
-    });
-    return () => task.cancel();
-  }, []);
-
-  // Server profile is only fetched for authenticated users. Anon users do
-  // exist server-side (so leaderboard works for everyone), but we deliberately
-  // do not surface anon profiles here to keep the signed-out CTA the focal
-  // point of this tab.
-  const profileEnabled =
-    fetchReady && isLoaded && authReady && !!isSignedIn && !!userId;
-
-  const { data, isLoading, error, refetch } = useQuery<Profile>({
-    queryKey: ["user", "me", userId ?? "signed-out"],
-    queryFn: () => apiGet("/user/me", ProfileSchema),
-    enabled: profileEnabled,
-  });
+  // Anon users have a server-side profile (so leaderboard works for
+  // everyone), but we deliberately keep the signed-out CTA the focal point
+  // of this tab — `useProfile` defaults to signed-in-only.
+  const { data, isLoading, error, refetch } = useProfile();
 
   // When the user signs out, fall back to a tab that doesn't depend on
   // server data so we never render an empty state for signed-in-only tabs.
   useEffect(() => {
-    if (!isSignedIn && (tab === "Overview" || tab === "By Personality")) {
-      setTab("By Difficulty");
+    if (!isSignedIn && (tab === "overview" || tab === "byPersonality")) {
+      setTab("byDifficulty");
     }
   }, [isSignedIn, tab]);
 
-  const displayName = data?.displayName ?? data?.username ?? "Player";
-  const handle = data?.username ? `@${data.username}` : "@player";
-  const avatarBg = data?.avatarColor ?? palette.accent;
-
   const version =
-    Constants.expoConfig?.version ??
-    Constants.nativeAppVersion ??
-    "—";
+    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "—";
 
   const confirmSignOut = useCallback(async () => {
     await signOut();
@@ -152,70 +123,45 @@ export default function ProfileScreen() {
           <ProfileSkeleton />
         ) : error ? (
           <View className="gap-3">
-            <Text className="text-red-500">Couldn't load profile.</Text>
+            <Text className="text-red-500">{t("profile.loadError")}</Text>
             <PressableScale
               onPress={() => refetch()}
               className="self-start bg-glass dark:bg-glass-dark border border-glassBorder dark:border-glassBorder-dark px-4 py-2 rounded-full"
               accessibilityRole="button"
-              accessibilityLabel="Retry"
+              accessibilityLabel={t("common.retry")}
             >
-              <Text className="text-primary dark:text-primary-dark">Retry</Text>
+              <Text className="text-primary dark:text-primary-dark">
+                {t("common.retry")}
+              </Text>
             </PressableScale>
           </View>
         ) : data ? (
           <>
-            <View className="items-center gap-3">
-              <View
-                className="items-center justify-center rounded-full"
-                style={{
-                  width: 88,
-                  height: 88,
-                  backgroundColor: avatarBg,
-                }}
-              >
-                <Text
-                  style={{ color: palette.accentContrast }}
-                  className="text-2xl font-extrabold"
-                >
-                  {initialsFrom(displayName)}
-                </Text>
-              </View>
-              <Text className="text-3xl font-bold text-primary dark:text-primary-dark text-center">
-                {displayName}
-              </Text>
-              <Text className="text-secondary dark:text-secondary-dark">
-                {handle}
-              </Text>
-              <View
-                className="px-4 py-1.5 rounded-full"
-                style={{ backgroundColor: palette.accent }}
-              >
-                <Text
-                  style={{ color: palette.accentContrast }}
-                  className="font-bold text-sm"
-                >
-                  ELO {data.elo}
-                </Text>
-              </View>
-              <PressableScale
-                onPress={handleEditProfile}
-                accessibilityRole="button"
-                accessibilityLabel="Edit profile"
-                className="border border-glassBorder dark:border-glassBorder-dark py-3 px-8 rounded-full w-full items-center mt-1"
-              >
-                <Text className="text-primary dark:text-primary-dark font-semibold text-base">
-                  Edit profile
-                </Text>
-              </PressableScale>
-            </View>
-
-            <SegmentedTabs
-              tabs={SIGNED_IN_TABS}
-              active={tab as SignedInTab}
-              onChange={(t) => setTab(t)}
+            <ProfileHeader
+              displayName={
+                data.displayName ?? data.username ?? t("profile.fallbackName")
+              }
+              handle={
+                data.username ? `@${data.username}` : t("profile.fallbackHandle")
+              }
+              elo={data.elo}
+              avatarBg={data.avatarColor ?? palette.accent}
+              palette={palette}
+              onEditProfile={handleEditProfile}
             />
 
-            {tab === "Overview" ? (
+            <SegmentedTabs
+              tabs={tabsForSegmented}
+              active={tabLabels[tab]}
+              onChange={(label) => {
+                const id = SIGNED_IN_TAB_IDS.find(
+                  (key) => tabLabels[key] === label,
+                );
+                if (id) setTab(id);
+              }}
+            />
+
+            {tab === "overview" ? (
               <View className="gap-6">
                 <CombinedStatsPanel
                   variant="split"
@@ -227,7 +173,7 @@ export default function ProfileScreen() {
                 <GlassPanel variant="panel">
                   <View className="p-6 items-center">
                     <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark mb-4">
-                      Win rate (ranked)
+                      {t("profile.winRateLabel")}
                     </Text>
                     <WinRateRing
                       wins={data.wins}
@@ -235,43 +181,22 @@ export default function ProfileScreen() {
                       draws={data.draws}
                     />
                     <Text className="text-center text-xs text-muted dark:text-muted-dark mt-4">
-                      {data.gamesPlayed} games played
+                      {t("profile.gamesPlayed", { count: data.gamesPlayed })}
                     </Text>
                   </View>
                 </GlassPanel>
-                <GlassPanel variant="panel">
-                  <View className="p-4 gap-0">
-                    <View className="flex-row items-center justify-between py-3">
-                      <Text className="text-primary dark:text-primary-dark font-medium">
-                        Theme
-                      </Text>
-                      <ThemeToggle />
-                    </View>
-                    <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-                    <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
-                      Version {version}
-                    </Text>
-                    <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-                    <Pressable
-                      onPress={() => setSignOutOpen(true)}
-                      accessibilityRole="button"
-                      accessibilityLabel="Sign out"
-                      style={{ minHeight: 48, justifyContent: "center" }}
-                    >
-                      <Text className="text-danger dark:text-danger-dark font-semibold">
-                        Sign out
-                      </Text>
-                    </Pressable>
-                  </View>
-                </GlassPanel>
+                <ProfileSettingsCard
+                  version={version}
+                  onSignOutPress={() => setSignOutOpen(true)}
+                />
               </View>
             ) : null}
 
-            {tab === "By Difficulty" ? (
+            {tab === "byDifficulty" ? (
               <DifficultyBreakdown serverStats={userStats} />
             ) : null}
 
-            {tab === "By Personality" ? (
+            {tab === "byPersonality" ? (
               <PersonalityBreakdown serverStats={userStats} />
             ) : null}
           </>
@@ -286,195 +211,11 @@ export default function ProfileScreen() {
         />
       ) : null}
 
-      <BottomSheet
+      <SignOutSheet
         visible={signOutOpen}
-        title="Sign out?"
+        onConfirm={() => void confirmSignOut()}
         onDismiss={() => setSignOutOpen(false)}
-      >
-        <Text className="text-secondary dark:text-secondary-dark mb-4">
-          You will return to the home screen. Ranked progress stays on the
-          server for when you sign back in.
-        </Text>
-        <View className="gap-3">
-          <PressableScale
-            onPress={() => void confirmSignOut()}
-            accessibilityRole="button"
-            accessibilityLabel="Confirm sign out"
-            className="bg-danger dark:bg-danger-dark py-3 rounded-full items-center"
-          >
-            <Text className="text-white font-semibold">Sign out</Text>
-          </PressableScale>
-          <PressableScale
-            onPress={() => setSignOutOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-            className="border border-glassBorder dark:border-glassBorder-dark py-3 rounded-full items-center"
-          >
-            <Text className="text-primary dark:text-primary-dark font-medium">
-              Cancel
-            </Text>
-          </PressableScale>
-        </View>
-      </BottomSheet>
+      />
     </ScreenContainer>
   );
 }
-
-const WIN_RATE_RING_SIZE = 120;
-
-function ProfileSkeleton() {
-  return (
-    <SkeletonGroup accessibilityLabel="Loading profile">
-      <View className="items-center gap-3">
-        <SkeletonCircle size={88} />
-        <Skeleton
-          width="60%"
-          height={28}
-          radius={8}
-          style={{ alignSelf: "center" }}
-        />
-        <Skeleton
-          width="32%"
-          height={14}
-          radius={6}
-          style={{ alignSelf: "center" }}
-        />
-        <Skeleton
-          width={88}
-          height={32}
-          radius={999}
-          style={{ alignSelf: "center" }}
-        />
-        <Skeleton
-          width="100%"
-          height={50}
-          radius={999}
-          style={{ alignSelf: "stretch", marginTop: 4 }}
-        />
-      </View>
-
-      <View
-        className="flex-row rounded-2xl p-1 bg-glass dark:bg-glass-dark border border-glassBorder dark:border-glassBorder-dark"
-        style={{ gap: 6, minHeight: 52, paddingVertical: 4, paddingHorizontal: 4 }}
-      >
-        {([0, 1, 2] as const).map((i) => (
-          <View
-            key={i}
-            className="flex-1"
-            style={{ minHeight: 44, justifyContent: "center" }}
-          >
-            <Skeleton height={36} radius={12} />
-          </View>
-        ))}
-      </View>
-
-      <View className="gap-6 mt-1">
-        <View className="flex-row gap-3 justify-between">
-          {([0, 1, 2] as const).map((i) => (
-            <GlassPanel key={i} variant="panel" style={{ flex: 1 }}>
-              <View className="py-4 px-2 items-center gap-2">
-                <Skeleton width={36} height={26} radius={6} />
-                <Skeleton width={44} height={10} radius={4} />
-              </View>
-            </GlassPanel>
-          ))}
-        </View>
-        <Skeleton
-          width="50%"
-          height={10}
-          radius={4}
-          style={{ alignSelf: "center" }}
-        />
-
-        <GlassPanel variant="panel">
-          <View className="p-6 items-center">
-            <Skeleton
-              width={140}
-              height={12}
-              radius={4}
-              style={{ marginBottom: 16 }}
-            />
-            <SkeletonCircle size={WIN_RATE_RING_SIZE} />
-            <Skeleton
-              width={120}
-              height={12}
-              radius={4}
-              style={{ marginTop: 16 }}
-            />
-          </View>
-        </GlassPanel>
-      </View>
-    </SkeletonGroup>
-  );
-}
-
-interface SignedOutProfileProps {
-  localStats: GameStats;
-  version: string;
-  palette: ReturnType<typeof useTheme>["palette"];
-}
-
-function SignedOutProfile({
-  localStats,
-  version,
-  palette,
-}: SignedOutProfileProps) {
-  return (
-    <>
-      <View className="items-center gap-3">
-        <View
-          className="items-center justify-center rounded-full"
-          style={{
-            width: 88,
-            height: 88,
-            backgroundColor: palette.glass,
-            borderWidth: 1,
-            borderColor: palette.glassBorder,
-          }}
-        >
-          <Text
-            style={{ color: palette.muted }}
-            className="text-3xl font-extrabold"
-          >
-            ?
-          </Text>
-        </View>
-        <Text className="text-3xl font-bold text-primary dark:text-primary-dark text-center">
-          You're playing as Guest
-        </Text>
-        <Text className="text-secondary dark:text-secondary-dark text-center px-4">
-          Sign in to save your ELO, climb the global leaderboard, and sync your
-          stats across devices.
-        </Text>
-        <PressableScale
-          onPress={() => router.push("/sign-in")}
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
-          className="bg-accent dark:bg-accent-dark py-3 px-8 rounded-full w-full items-center mt-2"
-        >
-          <Text className="text-accent-contrast dark:text-accent-contrast-dark font-semibold text-base">
-            Sign in
-          </Text>
-        </PressableScale>
-      </View>
-
-      <DifficultyBreakdown localStats={localStats} />
-
-      <GlassPanel variant="panel">
-        <View className="p-4 gap-0">
-          <View className="flex-row items-center justify-between py-3">
-            <Text className="text-primary dark:text-primary-dark font-medium">
-              Theme
-            </Text>
-            <ThemeToggle />
-          </View>
-          <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-          <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
-            Version {version}
-          </Text>
-        </View>
-      </GlassPanel>
-    </>
-  );
-}
-
