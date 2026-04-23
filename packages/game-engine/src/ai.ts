@@ -45,8 +45,11 @@ function negamax(
 /** Optimal move for the current player (Misere-aware). Used by API hint fallback. */
 export function getBestMove(state: GameState): Position {
   const moves = getValidMoves(state.board);
+  if (moves.length === 0) {
+    throw new Error("No valid moves available");
+  }
   let bestScore = -Infinity;
-  let bestMove = moves[0];
+  let bestMove: Position = moves[0]!;
 
   for (const move of moves) {
     const newBoard = state.board.slice() as unknown as [
@@ -70,7 +73,10 @@ export function getBestMove(state: GameState): Position {
 
 function getRandomMove(state: GameState): Position {
   const moves = getValidMoves(state.board);
-  return moves[Math.floor(Math.random() * moves.length)];
+  if (moves.length === 0) {
+    throw new Error("No valid moves available");
+  }
+  return moves[Math.floor(Math.random() * moves.length)]!;
 }
 
 export function getAiMove(state: GameState): Position {
@@ -80,7 +86,7 @@ export function getAiMove(state: GameState): Position {
   }
 
   if (moves.length === 1) {
-    return moves[0];
+    return moves[0]!;
   }
 
   switch (state.difficulty) {
