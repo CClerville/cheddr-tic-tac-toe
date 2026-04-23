@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { Board } from "@/components/Board";
+import { CommentaryBubble } from "@/components/ai/CommentaryBubble";
+import { HintButton } from "@/components/ai/HintButton";
 import { GameStatus } from "@/components/GameStatus";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
@@ -11,7 +13,8 @@ import { GAME_SCREEN_HORIZONTAL_INSET_PT } from "@/constants/gameScreenLayout";
 import { useGame } from "@/hooks/useGame";
 import { useRankedGame } from "@/hooks/useRankedGame";
 import { outcomeFromResult } from "@/storage/gameRepository";
-import type { Difficulty } from "@cheddr/game-engine";
+import { PersonalitySchema, type Personality } from "@cheddr/api-types";
+import type { Difficulty, Position } from "@cheddr/game-engine";
 
 const VALID: Difficulty[] = ["beginner", "intermediate", "expert"];
 
@@ -22,13 +25,19 @@ function parseDifficulty(value: unknown): Difficulty {
   return "intermediate";
 }
 
+function parsePersonality(value: unknown): Personality {
+  const r = PersonalitySchema.safeParse(value);
+  return r.success ? r.data : "coach";
+}
+
 export default function GameScreen() {
   const params = useLocalSearchParams();
   const initialDifficulty = parseDifficulty(params.difficulty);
   const isRanked = params.ranked === "1";
+  const personality = parsePersonality(params.personality);
 
   return isRanked ? (
-    <RankedGameScreen difficulty={initialDifficulty} />
+    <RankedGameScreen difficulty={initialDifficulty} personality={personality} />
   ) : (
     <LocalGameScreen difficulty={initialDifficulty} />
   );
@@ -46,6 +55,8 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
     difficulty,
     eloDelta: null,
     ranked: false,
+    gameId: null,
+    personality: "coach",
   });
 
   return (
@@ -65,8 +76,28 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
   );
 }
 
-function RankedGameScreen({ difficulty: initialDifficulty }: { difficulty: Difficulty }) {
-  const ranked = useRankedGame({ difficulty: initialDifficulty, ranked: true });
+function RankedGameScreen({
+  difficulty: initialDifficulty,
+  personality,
+}: {
+  difficulty: Difficulty;
+  personality: Personality;
+}) {
+  const ranked = useRankedGame({
+    difficulty: initialDifficulty,
+    ranked: true,
+    personality,
+  });
+  const [hintCell, setHintCell] = useState<Position | null>(null);
+
+  useEffect(() => {
+    setHintCell(null);
+  }, [ranked.sessionId]);
+
+  const moveFingerprint = useMemo(
+    () => ranked.gameState.moveHistory.join(","),
+    [ranked.gameState.moveHistory],
+  );
 
   useGameOverNavigator({
     phase: ranked.phase,
@@ -74,10 +105,18 @@ function RankedGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffi
     difficulty: initialDifficulty,
     eloDelta: ranked.eloDelta,
     ranked: true,
+    gameId: ranked.gameId,
+    personality,
   });
 
+  const canHint =
+    ranked.phase === "player_turn" &&
+    ranked.gameState.currentPlayer === "X" &&
+    ranked.gameState.result.status === "in_progress" &&
+    !ranked.loading;
+
   return (
-    <Shell title={`${initialDifficulty} · Ranked`} onReset={ranked.resetGame}>
+    <Shell title={`${initialDifficulty} · Ranked`} onReset={ranked.resetGame} overlay>
       {ranked.error ? (
         <Text className="text-red-500 text-center">{ranked.error}</Text>
       ) : null}
@@ -85,12 +124,28 @@ function RankedGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffi
         result={ranked.gameState.result}
         currentPlayer={ranked.gameState.currentPlayer}
       />
+      <View className="flex-row justify-center gap-3 w-full max-w-sm">
+        <HintButton
+          sessionId={ranked.sessionId}
+          canHint={canHint}
+          onSuggest={setHintCell}
+        />
+      </View>
       <Board
         board={ranked.gameState.board}
         result={ranked.gameState.result}
-        onCellPress={ranked.playMove}
+        onCellPress={(pos) => {
+          setHintCell(null);
+          void ranked.playMove(pos);
+        }}
         disabled={ranked.phase !== "player_turn" || ranked.loading}
         currentPlayer={ranked.gameState.currentPlayer}
+        hintCell={hintCell}
+      />
+      <CommentaryBubble
+        sessionId={ranked.sessionId}
+        moveFingerprint={moveFingerprint}
+        gameOver={ranked.isGameOver}
       />
     </Shell>
   );
@@ -100,10 +155,13 @@ function Shell({
   title,
   onReset,
   children,
+  overlay,
 }: {
   title: string;
   onReset: () => void;
   children: React.ReactNode;
+  /** When true, children can use absolute overlays (e.g. AI bubble). */
+  overlay?: boolean;
 }) {
   return (
     <ScreenContainer>
@@ -141,7 +199,7 @@ function Shell({
       </View>
 
       <View
-        className="flex-1"
+        className={overlay ? "flex-1 relative" : "flex-1"}
         style={{ paddingHorizontal: GAME_SCREEN_HORIZONTAL_INSET_PT }}
       >
         <ScrollView
@@ -169,8 +227,10 @@ function useGameOverNavigator(args: {
   difficulty: Difficulty;
   eloDelta: number | null;
   ranked: boolean;
+  gameId: string | null;
+  personality: Personality;
 }) {
-  const { phase, result, difficulty, eloDelta, ranked } = args;
+  const { phase, result, difficulty, eloDelta, ranked, gameId, personality } = args;
   const navigatedRef = useRef(false);
 
   useEffect(() => {
@@ -191,9 +251,11 @@ function useGameOverNavigator(args: {
           difficulty,
           ranked: ranked ? "1" : "0",
           eloDelta: eloDelta === null ? "" : String(eloDelta),
+          gameId: gameId ?? "",
+          personality,
         },
       });
     }, 700);
     return () => clearTimeout(timer);
-  }, [phase, result, difficulty, eloDelta, ranked]);
+  }, [phase, result, difficulty, eloDelta, ranked, gameId, personality]);
 }

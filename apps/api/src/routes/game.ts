@@ -23,6 +23,7 @@ import {
   createSession,
   deleteSession,
   getSession,
+  saveCompletedSessionForAi,
   updateSession,
   type GameSession,
 } from "../lib/session.js";
@@ -38,6 +39,7 @@ function sessionToDto(session: GameSession): GameStateDtoType {
     result: session.result,
     difficulty: session.difficulty,
     ranked: session.ranked,
+    personality: session.personality ?? "coach",
   };
 }
 
@@ -58,7 +60,7 @@ export function createGameRoutes(deps: AppDeps) {
     .use("*", requireAuth)
 
     .post("/start", zValidator("json", StartGameRequestSchema), async (c) => {
-      const { difficulty, ranked } = c.req.valid("json");
+      const { difficulty, ranked, personality } = c.req.valid("json");
       const identity = c.get("identity");
 
       const initial = createGame(difficulty);
@@ -72,6 +74,7 @@ export function createGameRoutes(deps: AppDeps) {
         moveHistory: [...initial.moveHistory],
         result: initial.result,
         difficulty,
+        personality,
       };
 
       await createSession(redis, session);
@@ -133,6 +136,7 @@ export function createGameRoutes(deps: AppDeps) {
 
       let eloDelta: number | null = null;
       let outcome: ReturnType<typeof outcomeForPlayer> | null = null;
+      let gameId: string | null = null;
 
       if (terminal) {
         const persisted = await persistTerminalGame(db, redis, {
@@ -145,6 +149,8 @@ export function createGameRoutes(deps: AppDeps) {
         });
         outcome = persisted.outcome;
         eloDelta = persisted.eloDelta;
+        gameId = persisted.gameId;
+        await saveCompletedSessionForAi(redis, session);
         await deleteSession(redis, session.id);
       } else {
         await updateSession(redis, session);
@@ -156,6 +162,7 @@ export function createGameRoutes(deps: AppDeps) {
         terminal,
         outcome,
         eloDelta,
+        gameId,
       };
       return c.json(body);
     })
@@ -185,12 +192,14 @@ export function createGameRoutes(deps: AppDeps) {
         ranked: session.ranked,
         durationMs: Date.now() - session.startedAt,
       });
+      await saveCompletedSessionForAi(redis, session);
       await deleteSession(redis, session.id);
 
       const body: ResignResponse = {
         state: sessionToDto(session),
         outcome: persisted.outcome,
         eloDelta: persisted.eloDelta,
+        gameId: persisted.gameId,
       };
       return c.json(body);
     })

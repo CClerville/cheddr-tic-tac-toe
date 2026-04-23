@@ -42,7 +42,8 @@ function negamax(
   return bestScore;
 }
 
-function getBestMove(state: GameState): Position {
+/** Optimal move for the current player (Misere-aware). Used by API hint fallback. */
+export function getBestMove(state: GameState): Position {
   const moves = getValidMoves(state.board);
   let bestScore = -Infinity;
   let bestMove = moves[0];

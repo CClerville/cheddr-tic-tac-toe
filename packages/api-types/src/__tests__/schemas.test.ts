@@ -84,6 +84,7 @@ describe("GameStateDTO", () => {
       result: { status: "in_progress" },
       difficulty: "intermediate",
       ranked: true,
+      personality: "coach",
     });
     expect(parsed.result.status).toBe("in_progress");
   });
@@ -98,6 +99,7 @@ describe("GameStateDTO", () => {
         result: { status: "loss" },
         difficulty: "expert",
         ranked: true,
+        personality: "coach",
       }),
     ).toThrow();
   });
@@ -114,11 +116,13 @@ describe("MoveResponseSchema", () => {
         result: { status: "in_progress" },
         difficulty: "expert",
         ranked: true,
+        personality: "coach",
       },
       aiMove: null,
       terminal: false,
       outcome: null,
       eloDelta: null,
+      gameId: null,
     });
     expect(r.terminal).toBe(false);
   });

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Redis } from "@upstash/redis";
 import {
   computeElo,
@@ -6,6 +6,7 @@ import {
   type Database,
   type GameOutcome,
 } from "@cheddr/db";
+import type { AnalysisResponse } from "@cheddr/api-types";
 import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
 
 import { consumeEloBudget, setLeaderboardScore } from "./leaderboard.js";
@@ -31,6 +32,8 @@ export interface PersistGameInput {
   moveHistory: Position[];
   ranked: boolean;
   durationMs: number | null;
+  /** When set, stored alongside the new game row (e.g. post-game analysis). */
+  aiAnalysis?: AnalysisResponse | null;
 }
 
 export interface PersistGameOutput {
@@ -42,6 +45,8 @@ export interface PersistGameOutput {
    */
   eloDelta: number;
   newElo: number;
+  /** Primary key of the inserted `games` row. */
+  gameId: string;
 }
 
 /**
@@ -85,15 +90,19 @@ export async function persistTerminalGame(
     newElo = Math.max(100, user.elo + appliedDelta);
   }
 
-  await db.insert(schema.games).values({
-    userId: input.userId,
-    difficulty: input.difficulty,
-    result: outcome,
-    moveHistory: input.moveHistory,
-    durationMs: input.durationMs,
-    eloDelta: appliedDelta,
-    ranked: input.ranked,
-  });
+  const [inserted] = await db
+    .insert(schema.games)
+    .values({
+      userId: input.userId,
+      difficulty: input.difficulty,
+      result: outcome,
+      moveHistory: input.moveHistory,
+      durationMs: input.durationMs,
+      eloDelta: appliedDelta,
+      ranked: input.ranked,
+      aiAnalysis: input.aiAnalysis ?? null,
+    })
+    .returning({ id: schema.games.id });
 
   await db
     .update(schema.users)
@@ -130,5 +139,27 @@ export async function persistTerminalGame(
     level: "info",
   });
 
-  return { outcome, eloDelta: appliedDelta, newElo };
+  if (!inserted) {
+    throw new Error("Failed to insert game row");
+  }
+
+  return { outcome, eloDelta: appliedDelta, newElo, gameId: inserted.id };
+}
+
+/**
+ * Attach LLM analysis JSON to an existing game row. Scoped to `userId`
+ * so users cannot mutate other players' history.
+ */
+export async function setGameAiAnalysis(
+  db: Database,
+  args: { gameId: string; userId: string; analysis: AnalysisResponse },
+): Promise<boolean> {
+  const updated = await db
+    .update(schema.games)
+    .set({ aiAnalysis: args.analysis })
+    .where(
+      and(eq(schema.games.id, args.gameId), eq(schema.games.userId, args.userId)),
+    )
+    .returning({ id: schema.games.id });
+  return updated.length > 0;
 }

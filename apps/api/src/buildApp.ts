@@ -5,6 +5,7 @@ import { createApp } from "./app.js";
 import { getEnv, getRedisRest } from "./env.js";
 import { initSentry } from "./lib/sentry.js";
 import { createAuthRoutes } from "./routes/auth.js";
+import { createAiRoutes } from "./routes/ai.js";
 import { createGameRoutes } from "./routes/game.js";
 import { createLeaderboardRoutes } from "./routes/leaderboard.js";
 import { createUserRoutes } from "./routes/user.js";
@@ -53,6 +54,7 @@ export function buildApp() {
   return createApp()
     .route("/auth", createAuthRoutes(deps))
     .route("/game", createGameRoutes(deps))
+    .route("/ai", createAiRoutes(deps))
     .route("/user", createUserRoutes(deps))
     .route("/leaderboard", createLeaderboardRoutes(deps));
 }

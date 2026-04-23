@@ -140,6 +140,49 @@ export async function authFetch(
   return res;
 }
 
+function resolveUrl(input: string): string {
+  return input.startsWith("http")
+    ? input
+    : `${API_BASE_URL}${input.startsWith("/") ? input : `/${input}`}`;
+}
+
+/**
+ * POST with `expo/fetch` so `response.body` is a proper byte stream on
+ * native (needed for `/ai/commentary` text streaming).
+ */
+export async function apiPostStreaming(
+  path: string,
+  body: unknown,
+  init?: { signal?: AbortSignal },
+): Promise<Response> {
+  const { fetch: expoFetch } = await import("expo/fetch");
+  const url = resolveUrl(path);
+  const isAuthAnon = url.endsWith("/auth/anon");
+
+  const send = async (bearer: string | null): Promise<Response> => {
+    const headers = new Headers();
+    if (bearer) headers.set("Authorization", `Bearer ${bearer}`);
+    headers.set("Content-Type", "application/json");
+    headers.set("x-request-id", Crypto.randomUUID());
+    return expoFetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: init?.signal,
+    });
+  };
+
+  const bearer = await resolveBearer(isAuthAnon);
+  let res = await send(bearer.token);
+  if (res.status === 401 && !isAuthAnon && bearer.source !== "clerk") {
+    const fresh = await mintAnonInline();
+    if (fresh && fresh !== bearer.token) {
+      res = await send(fresh);
+    }
+  }
+  return res;
+}
+
 /**
  * Tiny convenience helpers. We deliberately avoid a heavy generated
  * client (`hc<AppType>()`) because importing the API's internal Hono

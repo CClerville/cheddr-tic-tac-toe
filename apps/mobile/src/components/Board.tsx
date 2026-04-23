@@ -24,6 +24,8 @@ interface BoardProps {
   onCellPress: (position: Position) => void;
   disabled: boolean;
   currentPlayer: Player;
+  /** Optional AI hint highlight (empty cell index). */
+  hintCell?: Position | null;
 }
 
 const MIN_BOARD_SIDE_PT = 160;
@@ -35,6 +37,7 @@ export function Board({
   onCellPress,
   disabled,
   currentPlayer,
+  hintCell = null,
 }: BoardProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -75,6 +78,7 @@ export function Board({
           result={result}
           size={side}
           pressedCell={pressedCell}
+          hintCell={hintCell}
         />
       </View>
       <View

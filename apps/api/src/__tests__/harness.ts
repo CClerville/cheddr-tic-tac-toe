@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { schema, type Database } from "@cheddr/db";
 
+import { createMemoryAiLimiters } from "../lib/ai/rateLimit.js";
 import type { AppDeps } from "../types.js";
 import { mintAnonToken } from "../lib/anonToken.js";
 import { ensureUser } from "../middleware/auth.js";
@@ -40,6 +41,7 @@ async function applySchema(client: PGlite): Promise<void> {
       duration_ms integer,
       elo_delta integer NOT NULL DEFAULT 0,
       ranked boolean NOT NULL DEFAULT true,
+      ai_analysis jsonb,
       created_at timestamptz NOT NULL DEFAULT now()
     );
 
@@ -70,6 +72,7 @@ export async function createHarness(options?: CreateHarnessOptions): Promise<Tes
     redis: redis as unknown as AppDeps["redis"],
     clerkSecretKey: options?.clerkSecretKey !== undefined ? options.clerkSecretKey : null,
     jwtSecret,
+    aiLimiters: createMemoryAiLimiters(),
   };
 
   return {
