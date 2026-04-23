@@ -1,6 +1,5 @@
 import type { Personality } from "@cheddr/api-types";
 import type { Redis } from "@upstash/redis";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type {
   Board,
@@ -9,6 +8,8 @@ import type {
   Player,
   Position,
 } from "@cheddr/game-engine";
+
+import { apiError } from "./errors.js";
 
 /**
  * Server-side game session as persisted to Redis. Includes the engine
@@ -307,7 +308,7 @@ export async function withSessionMoveLock<T>(
     ex: MOVE_LOCK_TTL_SECONDS,
   });
   if (acquired === null) {
-    throw new HTTPException(409, { message: "Move in progress" });
+    throw apiError("session_locked", "Move in progress");
   }
   try {
     return await fn();

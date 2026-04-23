@@ -1,10 +1,10 @@
-import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
 import type { SyncAnonResponse } from "@cheddr/api-types";
 import { schema } from "@cheddr/db";
 
 import { ensureUser } from "../middleware/auth.js";
 import { verifyAnonToken } from "../lib/anonToken.js";
+import { apiError } from "../lib/errors.js";
 import { syncAnonToClerk } from "../lib/syncAnon.js";
 import type { AppDeps } from "../types.js";
 import { toProfile } from "./userProfile.js";
@@ -24,7 +24,7 @@ export async function claimAnonHistoryForClerkUser(
   try {
     anonPayload = await verifyAnonToken(deps.jwtSecret, anonToken);
   } catch {
-    throw new HTTPException(400, { message: "Invalid anon token" });
+    throw apiError("invalid_anon_token", "Invalid anon token");
   }
 
   // Make sure the Clerk row exists (`auth` middleware already does this
@@ -44,9 +44,7 @@ export async function claimAnonHistoryForClerkUser(
     .where(eq(schema.users.id, clerkUserId))
     .limit(1);
   if (!row) {
-    throw new HTTPException(500, {
-      message: "Clerk user disappeared mid-sync",
-    });
+    throw apiError("internal_error", "Clerk user disappeared mid-sync");
   }
 
   return {

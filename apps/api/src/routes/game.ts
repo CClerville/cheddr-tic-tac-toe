@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
@@ -19,6 +18,7 @@ import {
   type Position,
 } from "@cheddr/game-engine";
 
+import { apiError } from "../lib/errors.js";
 import { auth } from "../middleware/auth.js";
 import {
   createSession,
@@ -92,16 +92,16 @@ export function createGameRoutes(deps: AppDeps) {
       return await withSessionMoveLock(redis, sessionId, async () => {
         const session = await getSession(redis, sessionId);
         if (!session) {
-          throw new HTTPException(404, { message: "Session not found or expired" });
+          throw apiError("session_not_found", "Session not found or expired");
         }
         if (session.userId !== identity.id) {
-          throw new HTTPException(403, { message: "Session belongs to another user" });
+          throw apiError("forbidden", "Session belongs to another user");
         }
         if (session.result.status !== "in_progress") {
-          throw new HTTPException(409, { message: "Game is already over" });
+          throw apiError("game_not_in_progress", "Game is already over");
         }
         if (session.currentPlayer !== "X") {
-          throw new HTTPException(409, { message: "Not the player's turn" });
+          throw apiError("not_your_turn", "Not the player's turn");
         }
 
         let next;
@@ -117,9 +117,10 @@ export function createGameRoutes(deps: AppDeps) {
             position as Position,
           );
         } catch (err) {
-          throw new HTTPException(400, {
-            message: err instanceof Error ? err.message : "Invalid move",
-          });
+          throw apiError(
+            "invalid_move",
+            err instanceof Error ? err.message : "Invalid move",
+          );
         }
 
         let aiMove: Position | null = null;
@@ -179,13 +180,13 @@ export function createGameRoutes(deps: AppDeps) {
       return await withSessionMoveLock(redis, sessionId, async () => {
         const session = await getSession(redis, sessionId);
         if (!session) {
-          throw new HTTPException(404, { message: "Session not found or expired" });
+          throw apiError("session_not_found", "Session not found or expired");
         }
         if (session.userId !== identity.id) {
-          throw new HTTPException(403, { message: "Session belongs to another user" });
+          throw apiError("forbidden", "Session belongs to another user");
         }
         if (session.result.status !== "in_progress") {
-          throw new HTTPException(409, { message: "Game is already over" });
+          throw apiError("game_not_in_progress", "Game is already over");
         }
 
         session.result = resignAsLoss();
@@ -220,10 +221,10 @@ export function createGameRoutes(deps: AppDeps) {
         const identity = c.get("identity");
         const session = await getSession(redis, id);
         if (!session) {
-          throw new HTTPException(404, { message: "Session not found or expired" });
+          throw apiError("session_not_found", "Session not found or expired");
         }
         if (session.userId !== identity.id) {
-          throw new HTTPException(403, { message: "Session belongs to another user" });
+          throw apiError("forbidden", "Session belongs to another user");
         }
         return c.json(sessionToDto(session));
       },

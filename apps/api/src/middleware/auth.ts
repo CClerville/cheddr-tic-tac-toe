@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
 import type { MiddlewareHandler } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
 import { decodeProtectedHeader } from "jose";
 import { schema, type Database } from "@cheddr/db";
@@ -9,8 +8,11 @@ import type { Identity } from "@cheddr/api-types";
 
 import { verifyAnonToken } from "../lib/anonToken.js";
 import { verifyClerkSessionToken } from "../lib/clerkVerify.js";
+import { apiError } from "../lib/errors.js";
+import { logger } from "../lib/logger.js";
 import type { AppBindings } from "../types.js";
 
+const log = logger.child({ scope: "auth" });
 let clerkMissingWarned = false;
 
 export interface AuthMiddlewareOptions {
@@ -42,16 +44,16 @@ export function auth(options: AuthMiddlewareOptions): MiddlewareHandler<AppBindi
   return async (c, next) => {
     const header = c.req.header("Authorization");
     if (!header || !header.startsWith("Bearer ")) {
-      throw new HTTPException(401, { message: "Missing bearer token" });
+      throw apiError("unauthorized", "Missing bearer token");
     }
     const token = header.slice("Bearer ".length).trim();
     if (!token) {
-      throw new HTTPException(401, { message: "Empty bearer token" });
+      throw apiError("unauthorized", "Empty bearer token");
     }
 
     const identity = await resolveIdentity({ token, db, clerkSecretKey, jwtSecret });
     if (!identity) {
-      throw new HTTPException(401, { message: "Invalid or expired token" });
+      throw apiError("unauthorized", "Invalid or expired token");
     }
 
     c.set("identity", identity);
@@ -82,7 +84,7 @@ async function resolveIdentity(args: {
         };
       }
       // Token verified but had no `sub`; surface so it doesn't look like silent 401.
-      console.warn("[auth] Clerk verify ok but missing sub claim", {
+      log.warn("clerk_verify_missing_sub", {
         hasIss: typeof claims.iss === "string",
         iss: typeof claims.iss === "string" ? claims.iss : null,
       });
@@ -92,7 +94,9 @@ async function resolveIdentity(args: {
   } else if (!clerkSecretKey) {
     if (!clerkMissingWarned) {
       clerkMissingWarned = true;
-      console.warn("[auth] CLERK_SECRET_KEY missing on API; skipping Clerk path");
+      log.warn("clerk_secret_missing", {
+        hint: "CLERK_SECRET_KEY missing on API; skipping Clerk verification path",
+      });
     }
   }
 
@@ -106,9 +110,8 @@ async function resolveIdentity(args: {
       elo: user.elo,
     };
   } catch (err) {
-    console.warn("[auth] Anon verify failed (final fallback)", {
-      name: err instanceof Error ? err.name : typeof err,
-      message: err instanceof Error ? err.message : String(err),
+    log.warn("anon_verify_failed", {
+      err,
       tokenFingerprint: createHash("sha256")
         .update(token)
         .digest("hex")
