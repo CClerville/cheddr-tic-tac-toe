@@ -28,13 +28,10 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
-      <View
-        className="flex-1 px-6 pt-2"
-        style={{ paddingBottom: bottomPad }}
-      >
+      <View className="flex-1 px-6 pt-2" style={{ paddingBottom: bottomPad }}>
         <View className="items-center mt-2">
           <Text
-            className="text-5xl font-extrabold text-primary dark:text-primary-dark"
+            className="text-3xl font-extrabold text-primary dark:text-primary-dark"
             style={{ letterSpacing: -1.5 }}
           >
             Cheddr Tic-Tac-Toe

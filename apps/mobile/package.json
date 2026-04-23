@@ -6,6 +6,8 @@
   "scripts": {
     "test": "vitest run",
     "dev": "expo start",
+    "dev:tunnel": "expo start --tunnel",
+    "dev:cf-tunnel": "bash scripts/dev-cf-tunnel.sh",
     "start": "expo start",
     "dev:ios": "expo start --ios",
     "ios": "expo run:ios",

@@ -76,6 +76,10 @@ export function CommentaryBubble({
         acc += dec.decode();
         if (acc) setText(acc);
       } catch (e) {
+        // expo/fetch throws a FetchError (not an AbortError) when its
+        // underlying native request is canceled, so rely on the signal
+        // we control rather than the error name to detect our own aborts.
+        if (ac.signal.aborted) return;
         if ((e as Error).name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Commentary failed");
       }
