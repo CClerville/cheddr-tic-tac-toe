@@ -25,7 +25,10 @@ import {
   formatMoveHistory,
   serializeBoard,
 } from "../lib/ai/board.js";
-import { buildCommentaryUserPrompt } from "../lib/ai/commentaryPrompt.js";
+import {
+  buildCommentaryUserPrompt,
+  terminalKindFromResult,
+} from "../lib/ai/commentaryPrompt.js";
 import {
   selectPersistedCommentary,
 } from "../lib/ai/commentaryGuard.js";
@@ -164,10 +167,15 @@ export function createAiRoutes(deps: AppDeps) {
       const personality = session.personality ?? "coach";
       const playerName = await getPlayerName(db, identity.id);
       const model = resolveCommentaryModel(deps);
+      const terminal =
+        body.trigger === "terminal"
+          ? terminalKindFromResult(session.result, session.moveHistory)
+          : undefined;
       const system = buildAiSystemPrompt({
         personality,
         playerName,
         purpose: "commentary",
+        terminal,
       });
       const userPrompt = buildCommentaryUserPrompt({
         board: session.board,
@@ -202,6 +210,7 @@ export function createAiRoutes(deps: AppDeps) {
               text,
               session.board,
               session.moveHistory,
+              session.result,
             );
           if (toPersist) {
             if (usedFallback) {

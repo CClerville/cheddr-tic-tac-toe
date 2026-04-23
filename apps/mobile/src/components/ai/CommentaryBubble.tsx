@@ -1,8 +1,10 @@
 import type { CommentaryRequest, Personality } from "@cheddr/api-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 
 import { GlassPanel } from "@/components/ui/GlassPanel";
+import { useTypewriter } from "@/hooks/useTypewriter";
 import { apiPostStreaming } from "@/lib/api";
 import { useTheme } from "@/theme/ThemeProvider";
 
@@ -33,7 +35,9 @@ export function CommentaryBubble({
   personality,
 }: CommentaryBubbleProps) {
   const { palette } = useTheme();
+  const reduceMotion = useReducedMotion();
   const [text, setText] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
   const [visible, setVisible] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -47,7 +51,13 @@ export function CommentaryBubble({
     prevOver.current = false;
     setText("");
     setError(null);
+    setIsStreaming(false);
   }, [sessionId]);
+
+  const displayText = useTypewriter(text, {
+    isStreaming,
+    reduceMotion: reduceMotion ?? false,
+  });
 
   const runStream = useCallback(
     async (body: CommentaryRequest) => {
@@ -56,6 +66,7 @@ export function CommentaryBubble({
       abortRef.current = ac;
       setError(null);
       setText("");
+      setIsStreaming(true);
       try {
         const res = await apiPostStreaming("/ai/commentary", body, {
           signal: ac.signal,
@@ -92,6 +103,8 @@ export function CommentaryBubble({
         if (ac.signal.aborted) return;
         if ((e as Error).name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Commentary failed");
+      } finally {
+        setIsStreaming(false);
       }
     },
     [],
@@ -144,6 +157,7 @@ export function CommentaryBubble({
             <Pressable
               onPress={() => {
                 abortRef.current?.abort();
+                setIsStreaming(false);
                 setVisible(false);
               }}
               accessibilityRole="button"
@@ -159,7 +173,7 @@ export function CommentaryBubble({
             <Text className="text-xs text-red-500 mt-1">{error}</Text>
           ) : (
             <Text className="text-sm text-secondary dark:text-secondary-dark mt-1 leading-5">
-              {text || "…"}
+              {displayText || "…"}
             </Text>
           )}
         </View>

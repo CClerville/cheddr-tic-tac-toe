@@ -68,7 +68,10 @@ export function AiThinkingPulse({
     };
   });
 
-  if (!active) return null;
+  /** Always mount shell so parent opacity toggles never cause mount/unmount reflow. */
+  if (!active) {
+    return <View pointerEvents="none" style={shellStyle(size)} />;
+  }
 
   if (reduceMotion) {
     return (

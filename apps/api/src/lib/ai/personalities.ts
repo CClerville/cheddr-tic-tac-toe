@@ -1,6 +1,9 @@
 import type { Personality } from "@cheddr/api-types";
 
 import { CELL_NAMES } from "./board.js";
+import type { CommentaryTerminalMeta } from "./commentaryPrompt.js";
+
+export type { CommentaryTerminalMeta } from "./commentaryPrompt.js";
 
 export const BOT_NAME = "Cheddr";
 
@@ -12,6 +15,11 @@ export interface BuildPromptArgs {
   playerName: string | null;
   /** Which AI surface this prompt drives. */
   purpose: AiPromptPurpose;
+  /**
+   * When set with `purpose: "commentary"`, replaces the in-progress voice block
+   * so end-of-game lines match win / loss / draw (and early finishes).
+   */
+  terminal?: CommentaryTerminalMeta;
 }
 
 const MISERE =
@@ -73,10 +81,105 @@ function voiceBlock(personality: Personality): string {
   }
 }
 
+function terminalVoiceBlock(
+  personality: Personality,
+  t: CommentaryTerminalMeta,
+): string {
+  const early =
+    t.early
+      ? " The user message includes (early finish)—note the game ended quickly without piling on."
+      : "";
+
+  switch (personality) {
+    case "coach":
+      switch (t.kind) {
+        case "loss":
+          return [
+            `Voice: warm mentor, post-game only.`,
+            `React ONLY to the terminal outcome in the user message (Outcome:). Do not praise their last move as if play continues.`,
+            `One sentence acknowledges the loss (misère: they completed three-in-a-row); use the exact square label from "Latest move" when that move ended the game.${early}`,
+            `One short growth line—misère means avoid completing your own line.`,
+            `No sarcasm.`,
+          ].join(" ");
+        case "win":
+          return [
+            `Voice: warm mentor, post-game only.`,
+            `They won because Cheddr (O) completed three-in-a-row (misère). Celebrate warmly in one or two sentences.${early}`,
+            `No sarcasm.`,
+          ].join(" ");
+        case "draw":
+          return [
+            `Voice: warm mentor, post-game only.`,
+            `Full board, no three-in-a-row—credit both sides for the draw in one or two sentences.`,
+            `No sarcasm.`,
+          ].join(" ");
+      }
+    case "trash_talk":
+      switch (t.kind) {
+        case "loss":
+          return [
+            `Voice: cocky rival, GAME OVER.`,
+            `Gloat about the outcome in the user message—roast the losing pattern or speed, never the person (no "loser"). PG-13.${early}`,
+            `Drop one Cheddr-ism if it fits.`,
+          ].join(" ");
+        case "win":
+          return [
+            `Voice: cocky rival who just ate the L.`,
+            `Concede they got you on misère—brief, punchy, still PG-13. No slurs.`,
+          ].join(" ");
+        case "draw":
+          return [
+            `Voice: cocky rival, stalemate.`,
+            `Crack one line about nobody blinking—PG-13, move-focused.`,
+          ].join(" ");
+      }
+    case "zen_master":
+      switch (t.kind) {
+        case "loss":
+          return [
+            `Voice: calm zen guide, game ended.`,
+            `At most 14 words. Acknowledge the outcome in the user message; no mockery. No exclamation marks.${early}`,
+          ].join(" ");
+        case "win":
+          return [
+            `Voice: calm zen guide, game ended.`,
+            `At most 14 words. Quiet congratulations for their win. No exclamation marks.`,
+          ].join(" ");
+        case "draw":
+          return [
+            `Voice: calm zen guide, game ended.`,
+            `At most 14 words. Balance stillness of a full board draw. No exclamation marks.`,
+          ].join(" ");
+      }
+    case "sports_caster":
+      switch (t.kind) {
+        case "loss":
+          return [
+            `Voice: excited sports broadcaster, FINAL.`,
+            `Call the walk-off: who completed the line and lost on misère per Outcome:. One short ALL-CAPS beat allowed.${early}`,
+            `Do not preview future moves—the game is over.`,
+            `Family-friendly.`,
+          ].join(" ");
+        case "win":
+          return [
+            `Voice: excited sports broadcaster, FINAL.`,
+            `They win on misère—Cheddr forced the losing line. One short ALL-CAPS beat allowed.`,
+            `Family-friendly.`,
+          ].join(" ");
+        case "draw":
+          return [
+            `Voice: excited sports broadcaster, FINAL.`,
+            `Nine squares, no winner under misère—wrap with one ALL-CAPS beat if you want.`,
+            `Family-friendly.`,
+          ].join(" ");
+      }
+  }
+}
+
 function purposeTail(purpose: AiPromptPurpose): string {
   switch (purpose) {
     case "commentary":
-      return `Output: one or two short sentences, present tense, no bullet lists, no markdown.`;
+      return `Output: one or two short sentences, present tense, no bullet lists, no markdown. When the user message Trigger is terminal, speak as after the final whistle—never "let's see what happens next" on a finished board.`;
     case "hint":
       return `Stay in character but be useful. You MUST pick one of the legal moves the user message lists.`;
     case "analysis":
@@ -88,11 +191,18 @@ function purposeTail(purpose: AiPromptPurpose): string {
  * Full system prompt for Cheddr across commentary, hints, and post-game analysis.
  */
 export function buildAiSystemPrompt(args: BuildPromptArgs): string {
+  const terminal =
+    args.purpose === "commentary" ? args.terminal : undefined;
+  const voice =
+    terminal != null
+      ? terminalVoiceBlock(args.personality, terminal)
+      : voiceBlock(args.personality);
+
   return [
     identityPreamble(args.playerName),
     MISERE,
     spatialGroundingRule(),
-    voiceBlock(args.personality),
+    voice,
     purposeTail(args.purpose),
   ]
     .filter(Boolean)

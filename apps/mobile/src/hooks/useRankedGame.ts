@@ -8,7 +8,12 @@ import {
   type GameStateDTO,
   type Personality,
 } from "@cheddr/api-types";
-import type { Difficulty, GameState, Position } from "@cheddr/game-engine";
+import {
+  makeMove,
+  type Difficulty,
+  type GameState,
+  type Position,
+} from "@cheddr/game-engine";
 
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 import { haptics } from "@/lib/haptics";
@@ -55,6 +60,18 @@ function dtoToEngine(dto: GameStateDTO): GameState {
 function derivePhase(state: GameState): GamePhase {
   if (state.result.status !== "in_progress") return "game_over";
   return state.currentPlayer === "X" ? "player_turn" : "ai_thinking";
+}
+
+function cloneRankedState(s: RankedState): RankedState {
+  return {
+    ...s,
+    gameState: {
+      ...s.gameState,
+      board: [...s.gameState.board] as GameState["board"],
+      moveHistory: [...s.gameState.moveHistory],
+      result: s.gameState.result,
+    },
+  };
 }
 
 /**
@@ -129,12 +146,44 @@ export function useRankedGame(options: UseRankedGameOptions) {
     async (position: Position) => {
       if (!state.sessionId) return;
       if (state.phase !== "player_turn") return;
-      setState((s) => ({ ...s, loading: true, phase: "ai_thinking" }));
+
+      const sessionIdAtStart = state.sessionId;
+      const snapshot = cloneRankedState(state);
+
+      let optimistic: GameState;
       try {
-        const res = await apiPost("/game/move", {
-          sessionId: state.sessionId,
-          position,
-        }, MoveResponseSchema);
+        optimistic = makeMove(state.gameState, position);
+      } catch {
+        haptics.illegalTap();
+        return;
+      }
+
+      if (optimistic.result.status === "in_progress") {
+        haptics.pieceLanded();
+      }
+
+      setState((s) => {
+        if (s.sessionId !== sessionIdAtStart || s.phase !== "player_turn") {
+          return s;
+        }
+        return {
+          ...s,
+          gameState: optimistic,
+          phase: derivePhase(optimistic),
+          loading: true,
+          error: null,
+        };
+      });
+
+      try {
+        const res = await apiPost(
+          "/game/move",
+          {
+            sessionId: sessionIdAtStart,
+            position,
+          },
+          MoveResponseSchema,
+        );
         const engine = dtoToEngine(res.state);
         if (res.terminal) {
           Sentry.addBreadcrumb({
@@ -152,18 +201,20 @@ export function useRankedGame(options: UseRankedGameOptions) {
           else if (res.outcome === "loss") haptics.loss();
           else if (res.outcome === "draw") haptics.draw();
           invalidateAfterTerminal();
-        } else {
-          haptics.pieceLanded();
         }
-        setState({
-          sessionId: state.sessionId,
-          gameState: engine,
-          phase: derivePhase(engine),
-          loading: false,
-          error: null,
-          outcome: res.outcome,
-          eloDelta: res.eloDelta,
-          gameId: res.gameId ?? null,
+        // Non-terminal: pieceLanded already fired on optimistic apply.
+        setState((s) => {
+          if (s.sessionId !== sessionIdAtStart) return s;
+          return {
+            sessionId: sessionIdAtStart,
+            gameState: engine,
+            phase: derivePhase(engine),
+            loading: false,
+            error: null,
+            outcome: res.outcome,
+            eloDelta: res.eloDelta,
+            gameId: res.gameId ?? null,
+          };
         });
       } catch (err) {
         const isClientIllegalMove =
@@ -172,46 +223,48 @@ export function useRankedGame(options: UseRankedGameOptions) {
           /invalid|illegal|occupied|not allowed/i.test(err.message);
         if (isClientIllegalMove) {
           haptics.illegalTap();
-          setState((s) => ({
-            ...s,
-            loading: false,
-            phase: "player_turn",
-            error: err.message,
-          }));
+          setState((s) => {
+            if (s.sessionId !== sessionIdAtStart) return s;
+            return { ...snapshot, error: err.message };
+          });
           return;
         }
         haptics.illegalTap();
         try {
           const dto = await apiGet(
-            `/game/${state.sessionId}/state`,
+            `/game/${sessionIdAtStart}/state`,
             StartGameResponseSchema,
           );
           const engine = dtoToEngine(dto);
-          setState({
-            sessionId: state.sessionId,
-            gameState: engine,
-            phase: derivePhase(engine),
-            loading: false,
-            error:
-              err instanceof ApiError
-                ? err.message
-                : "Move failed — synced with server",
-            outcome: null,
-            eloDelta: null,
-            gameId: null,
+          setState((s) => {
+            if (s.sessionId !== sessionIdAtStart) return s;
+            return {
+              sessionId: sessionIdAtStart,
+              gameState: engine,
+              phase: derivePhase(engine),
+              loading: false,
+              error:
+                err instanceof ApiError
+                  ? err.message
+                  : "Move failed — synced with server",
+              outcome: null,
+              eloDelta: null,
+              gameId: null,
+            };
           });
         } catch {
-          setState((s) => ({
-            ...s,
-            loading: false,
-            phase: "player_turn",
-            error:
-              err instanceof ApiError ? err.message : "Move failed",
-          }));
+          setState((s) => {
+            if (s.sessionId !== sessionIdAtStart) return s;
+            return {
+              ...snapshot,
+              error:
+                err instanceof ApiError ? err.message : "Move failed",
+            };
+          });
         }
       }
     },
-    [state.sessionId, state.phase, difficulty, invalidateAfterTerminal],
+    [state, difficulty, invalidateAfterTerminal],
   );
 
   const resign = useCallback(async () => {

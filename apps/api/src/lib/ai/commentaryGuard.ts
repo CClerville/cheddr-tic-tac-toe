@@ -1,4 +1,4 @@
-import type { Board, Position } from "@cheddr/game-engine";
+import type { Board, GameResult, Position } from "@cheddr/game-engine";
 
 import {
   CELL_NAMES,
@@ -60,7 +60,22 @@ function lastHumanMoveLabel(moveHistory: readonly Position[]): string | null {
 /** Line appended to Redis when the model text fails spatial validation. */
 export function commentaryFallbackLine(
   moveHistory: readonly Position[],
+  result: GameResult,
 ): string {
+  if (result.status === "draw") {
+    return "All nine squares, no losers. Clean draw.";
+  }
+  if (result.status === "loss") {
+    if (result.loser === "X") {
+      const label = lastHumanMoveLabel(moveHistory);
+      if (label) {
+        return `Tough one — your three-in-a-row at ${label} ends it. GG.`;
+      }
+      return "Tough one — your three-in-a-row ends it. GG.";
+    }
+    return "I walked right into three-in-a-row. Nice trap — that's your win.";
+  }
+
   const label = lastHumanMoveLabel(moveHistory);
   if (!label) return "Solid play so far. Let's see how this unfolds.";
   return `Solid move at ${label}. Let's see how this unfolds.`;
@@ -112,6 +127,7 @@ export function selectPersistedCommentary(
   rawText: string,
   board: Board,
   moveHistory: readonly Position[],
+  result: GameResult,
 ): { text: string; usedFallback: boolean; reason?: CommentaryValidationReason } {
   const trimmed = rawText.trim();
   if (!trimmed) {
@@ -122,7 +138,7 @@ export function selectPersistedCommentary(
     return { text: trimmed, usedFallback: false };
   }
   return {
-    text: commentaryFallbackLine(moveHistory),
+    text: commentaryFallbackLine(moveHistory, result),
     usedFallback: true,
     reason: v.reason,
   };

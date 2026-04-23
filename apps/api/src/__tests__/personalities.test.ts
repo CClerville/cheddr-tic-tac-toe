@@ -92,4 +92,16 @@ describe("buildAiSystemPrompt", () => {
     expect(s).toMatch(/play-by-play|Play-by-play/);
     expect(s).toContain("ALL-CAPS");
   });
+
+  it("terminal early loss coach uses post-game steering, not nice-eye praise", () => {
+    const s = buildAiSystemPrompt({
+      personality: "coach",
+      playerName: null,
+      purpose: "commentary",
+      terminal: { kind: "loss", early: true },
+    });
+    expect(s).toMatch(/post-game|React ONLY|terminal outcome/i);
+    expect(s).not.toContain("nice eye");
+    expect(s).not.toContain("positive observation");
+  });
 });
