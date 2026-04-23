@@ -1,6 +1,15 @@
 import type { Redis } from "@upstash/redis";
 
 import { getEnv } from "../../env.js";
+import {
+  AI_TOKEN_COUNTER_TTL_SECONDS,
+  DEFAULT_AI_DAILY_GLOBAL_TOKEN_BUDGET,
+  DEFAULT_AI_DAILY_USER_TOKEN_BUDGET,
+} from "./constants.js";
+import {
+  RESERVE_AI_TOKENS_SCRIPT,
+  type ReserveAiTokensResult,
+} from "./luaScripts.js";
 
 function utcDayKey(): string {
   const d = new Date();
@@ -18,14 +27,15 @@ function globalTokenKey(): string {
   return `cheddr:ai:tokens:global:${utcDayKey()}`;
 }
 
-const TTL_SECONDS = 60 * 60 * 48;
-
 export function dailyTokenBudget(): number {
-  return getEnv().AI_DAILY_TOKEN_BUDGET ?? 500_000;
+  return getEnv().AI_DAILY_TOKEN_BUDGET ?? DEFAULT_AI_DAILY_USER_TOKEN_BUDGET;
 }
 
 export function globalDailyTokenBudget(): number {
-  return getEnv().AI_GLOBAL_DAILY_TOKEN_BUDGET ?? 20_000_000;
+  return (
+    getEnv().AI_GLOBAL_DAILY_TOKEN_BUDGET ??
+    DEFAULT_AI_DAILY_GLOBAL_TOKEN_BUDGET
+  );
 }
 
 export async function getDailyTokenUsage(
@@ -41,8 +51,12 @@ export async function getDailyTokenUsage(
 
 /**
  * Atomically reserve `reserve` tokens against both the per-user and global
- * daily ceilings. Call `settleAiTokenReservation` after the model returns
- * to reconcile actual vs reserved usage.
+ * daily ceilings via a single Redis EVAL. The script either increments both
+ * counters or neither — there is no observable intermediate state, even
+ * under concurrent requests.
+ *
+ * Call `settleAiTokenReservation` after the model returns to reconcile
+ * actual vs reserved usage.
  */
 export async function tryReserveAiTokens(
   redis: Redis,
@@ -57,24 +71,23 @@ export async function tryReserveAiTokens(
   const uKey = tokenKey(userId);
   const gKey = globalTokenKey();
 
-  const userAfter = await redis.incrby(uKey, reserve);
-  if (userAfter === reserve) await redis.expire(uKey, TTL_SECONDS);
+  const result = (await redis.eval(
+    RESERVE_AI_TOKENS_SCRIPT,
+    [uKey, gKey],
+    [
+      String(reserve),
+      String(userBudget),
+      String(globalBudget),
+      String(AI_TOKEN_COUNTER_TTL_SECONDS),
+    ],
+  )) as ReserveAiTokensResult;
 
-  if (userAfter > userBudget) {
-    await redis.incrby(uKey, -reserve);
-    return { ok: false, reason: "user" };
+  const [ok, reason] = result;
+  if (ok === 1) {
+    return { ok: true, reserved: reserve };
   }
-
-  const gAfter = await redis.incrby(gKey, reserve);
-  if (gAfter === reserve) await redis.expire(gKey, TTL_SECONDS);
-
-  if (gAfter > globalBudget) {
-    await redis.incrby(uKey, -reserve);
-    await redis.incrby(gKey, -reserve);
-    return { ok: false, reason: "global" };
-  }
-
-  return { ok: true, reserved: reserve };
+  // The script never returns "ok" with ok=0, so reason is "user" | "global".
+  return { ok: false, reason: reason as "user" | "global" };
 }
 
 /**
@@ -92,6 +105,6 @@ export async function settleAiTokenReservation(
     await redis.incrby(tokenKey(userId), delta);
     await redis.incrby(globalTokenKey(), delta);
   }
-  await redis.expire(tokenKey(userId), TTL_SECONDS);
-  await redis.expire(globalTokenKey(), TTL_SECONDS);
+  await redis.expire(tokenKey(userId), AI_TOKEN_COUNTER_TTL_SECONDS);
+  await redis.expire(globalTokenKey(), AI_TOKEN_COUNTER_TTL_SECONDS);
 }

@@ -233,7 +233,7 @@ describe("AI routes", () => {
     expect(body).toBe("");
 
     // Give any rejected microtasks a tick to surface before we assert.
-    await new Promise((r) => setImmediate(r));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(unhandled).toEqual([]);
   });
 
@@ -268,8 +268,8 @@ describe("AI routes", () => {
       body: JSON.stringify({ gameId }),
     });
     expect(res.status).toBe(503);
-    const body = await res.text();
-    expect(body).toBe("ai_unavailable");
+    const body = (await res.json()) as { error?: string; message?: string };
+    expect(body.error).toBe("ai_unavailable");
 
     const [row] = await deps.db
       .select({ aiAnalysis: schema.games.aiAnalysis })
@@ -278,7 +278,7 @@ describe("AI routes", () => {
       .limit(1);
     expect(row?.aiAnalysis).toBeNull();
 
-    await new Promise((r) => setImmediate(r));
+    await new Promise((resolve) => setImmediate(resolve));
     expect(unhandled).toEqual([]);
   });
 

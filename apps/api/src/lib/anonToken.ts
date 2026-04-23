@@ -62,7 +62,12 @@ export async function verifyAnonToken(
     typeof payload.did === "string" && payload.did.length > 0
       ? payload.did
       : undefined;
-  return { sub: payload.sub, iat: payload.iat, exp: payload.exp, did };
+  return {
+    sub: payload.sub,
+    iat: payload.iat,
+    exp: payload.exp,
+    ...(did !== undefined && { did }),
+  };
 }
 
 /** Generate a fresh anon user ID. */
