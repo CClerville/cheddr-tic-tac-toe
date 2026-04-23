@@ -2,6 +2,7 @@
   "name": "cheddr-tic-tac-toe",
   "private": true,
   "scripts": {
+    "start": "bash start.sh",
     "build": "turbo run build",
     "dev": "turbo run dev --ui=tui --filter=@cheddr/api --filter=@cheddr/mobile",
     "dev:api": "pnpm --filter @cheddr/api dev",

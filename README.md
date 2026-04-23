@@ -25,55 +25,44 @@ packages/
   config-ts/
 ```
 
-## Prerequisites
+## Run the app (macOS)
 
-- **Node 20+**
-- **pnpm** 10 (`packageManager` in root `package.json`)
-- **Neon** (or any Postgres) + **Upstash Redis** + **Clerk** for full-stack local dev
+1. Install **[Expo Go](https://expo.dev/go)** on your phone (iOS App Store or Google Play).
+2. Clone this repo, `cd` into it, and run:
 
-## Quickstart
+   ```bash
+   ./start.sh
+   ```
 
-```bash
-pnpm install
-pnpm dev          # API + mobile (Turbo TUI)
-# or separately:
-pnpm dev:api
-pnpm dev:mobile
-```
+   (Requires execute permission: `chmod +x start.sh` if needed.) After the first successful run you can also use `pnpm start` if `pnpm` is already on your PATH.
 
-API defaults to port **3005** (see `apps/api`). Point the mobile app at your API base URL (env / dev client).
+   The script installs **Homebrew** (if needed), **Node 20+**, **pnpm**, and **cloudflared**, writes `apps/api/.env.local` and `apps/mobile/.env.local` on first run only, runs `pnpm install`, then starts the API and Metro with **Cloudflare quick tunnels** so your device does not need to be on the same LAN.
 
-### Full tunnel (device hitting laptop API)
+3. When a QR code appears in the terminal, scan it with the **iOS Camera** (opens Expo Go) or open the printed **Expo Go deep link** on Android. Ignore the QR that Expo CLI prints later — use the one from this script (see [`scripts/dev-full-tunnel.sh`](scripts/dev-full-tunnel.sh)).
 
-```bash
-pnpm dev:full-tunnel
-```
-
-See [`scripts/dev-full-tunnel.sh`](scripts/dev-full-tunnel.sh) for Cloudflare + Expo wiring.
-
-## Environment variables
-
-**API** (`apps/api/.env.local` — never commit secrets):
-
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | Postgres (pooled OK for queries; migrations often need unpooled — see [`docs/ci.md`](docs/ci.md)) |
-| `REDIS_URL` / Upstash KV vars | Session + rate limits |
-| `JWT_SECRET` | Anonymous JWT signing |
-| `CLERK_SECRET_KEY` | Clerk-issued tokens + user sync |
-
-**Mobile**: Clerk publishable key, API base URL, Sentry DSN (optional) — see `apps/mobile` env docs in `app.config.ts` / EAS.
-
-Full CI secrets and deploy order: **[`docs/ci.md`](docs/ci.md)**.
+Stop everything with **Ctrl-C**.
 
 ## Scripts (root)
 
 | Script | Description |
 |--------|-------------|
+| `./start.sh` / `pnpm start` | Full setup + install + tunnel dev (recommended) |
 | `pnpm build` | Turbo build |
-| `pnpm dev` | API + mobile dev |
+| `pnpm dev` | API + mobile dev (Turbo TUI) |
+| `pnpm dev:api` / `pnpm dev:mobile` | Run API or mobile only |
+| `pnpm dev:full-tunnel` | Tunnel flow only (assumes deps and env already set) |
 | `pnpm lint` | ESLint + package lint tasks via Turbo |
 | `pnpm test` | Turbo test |
+
+## Advanced (manual setup)
+
+If you prefer not to use `start.sh`:
+
+- **Prerequisites:** Node 20+, pnpm 10 (`packageManager` in root `package.json`), Postgres (Neon) + Upstash Redis + Clerk credentials in `apps/api/.env.local`, and mobile `EXPO_PUBLIC_*` vars in `apps/mobile/.env.local`.
+- **Install:** `pnpm install`
+- **Dev:** `pnpm dev` (API defaults to port **3005**). For a physical device without LAN, use `pnpm dev:full-tunnel` after installing `cloudflared` (`brew install cloudflared`).
+
+Environment variable reference and CI secrets: **[`docs/ci.md`](docs/ci.md)**.
 
 ## Documentation
 
