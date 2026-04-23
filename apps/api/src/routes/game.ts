@@ -148,6 +148,7 @@ export function createGameRoutes(deps: AppDeps) {
             result: session.result,
             moveHistory: session.moveHistory,
             ranked: session.ranked,
+            personality: session.personality ?? null,
             durationMs: Date.now() - session.startedAt,
           });
           outcome = persisted.outcome;
@@ -195,6 +196,7 @@ export function createGameRoutes(deps: AppDeps) {
           result: session.result,
           moveHistory: session.moveHistory,
           ranked: session.ranked,
+          personality: session.personality ?? null,
           durationMs: Date.now() - session.startedAt,
         });
         await saveCompletedSessionForAi(redis, session);

@@ -5,6 +5,7 @@ import {
   schema,
   type Database,
   type GameOutcome,
+  type GamePersonality,
 } from "@cheddr/db";
 import type { AnalysisResponse } from "@cheddr/api-types";
 import type { Difficulty, GameResult, Position } from "@cheddr/game-engine";
@@ -32,6 +33,12 @@ export interface PersistGameInput {
   moveHistory: Position[];
   ranked: boolean;
   durationMs: number | null;
+  /**
+   * AI personality the human played against. Optional so older callers (and
+   * tests) keep compiling, but new game routes always pass it through from
+   * the session so per-personality aggregates can be queried.
+   */
+  personality?: GamePersonality | null;
   /** When set, stored alongside the new game row (e.g. post-game analysis). */
   aiAnalysis?: AnalysisResponse | null;
 }
@@ -108,20 +115,29 @@ export async function persistTerminalGame(
       durationMs: input.durationMs,
       eloDelta: appliedDelta,
       ranked: input.ranked,
+      personality: input.personality ?? null,
       aiAnalysis: input.aiAnalysis ?? null,
     })
     .returning({ id: schema.games.id });
 
-  await db
-    .update(schema.users)
-    .set({
-      elo: newElo,
-      gamesPlayed: sql`${schema.users.gamesPlayed} + 1`,
-      wins: sql`${schema.users.wins} + ${outcome === "win" ? 1 : 0}`,
-      losses: sql`${schema.users.losses} + ${outcome === "loss" ? 1 : 0}`,
-      draws: sql`${schema.users.draws} + ${outcome === "draw" ? 1 : 0}`,
-    })
-    .where(eq(schema.users.id, input.userId));
+  // The `users` aggregate counters (gamesPlayed/wins/losses/draws) and ELO
+  // represent **ranked** progress only -- they feed the leaderboard and the
+  // ranked-only "by difficulty" tile. Casual games are persisted to `games`
+  // (so they show up in the per-difficulty / per-personality breakdowns)
+  // but must NOT inflate the ranked counters. The full ranked + casual
+  // breakdown is served separately via `GET /user/stats`.
+  if (input.ranked) {
+    await db
+      .update(schema.users)
+      .set({
+        elo: newElo,
+        gamesPlayed: sql`${schema.users.gamesPlayed} + 1`,
+        wins: sql`${schema.users.wins} + ${outcome === "win" ? 1 : 0}`,
+        losses: sql`${schema.users.losses} + ${outcome === "loss" ? 1 : 0}`,
+        draws: sql`${schema.users.draws} + ${outcome === "draw" ? 1 : 0}`,
+      })
+      .where(eq(schema.users.id, input.userId));
+  }
 
   if (input.ranked && user.kind === "clerk") {
     // Best-effort: a leaderboard write failure should not poison the

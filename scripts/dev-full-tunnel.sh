@@ -98,7 +98,13 @@ extract_tunnel_url() {
   local timeout="${3:-60}"
   local url=""
   for _ in $(seq 1 "$timeout"); do
-    url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" | head -n 1 || true)"
+    # Cloudflared logs `https://api.trycloudflare.com` (its control-plane
+    # endpoint) before — and sometimes racily interleaved with — the real
+    # quick-tunnel URL announcement. We must skip that hostname or we end
+    # up opening exp://api.trycloudflare.com in Expo Go, which 404s.
+    url="$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' "$log_file" \
+      | grep -v '^https://api\.trycloudflare\.com$' \
+      | head -n 1 || true)"
     if [ -n "$url" ]; then
       echo "$url"
       return 0

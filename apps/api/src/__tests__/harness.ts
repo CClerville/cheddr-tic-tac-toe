@@ -46,6 +46,7 @@ async function applySchema(client: PGlite): Promise<void> {
       duration_ms integer,
       elo_delta integer NOT NULL DEFAULT 0,
       ranked boolean NOT NULL DEFAULT true,
+      personality text,
       ai_analysis jsonb,
       created_at timestamptz NOT NULL DEFAULT now()
     );

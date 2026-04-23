@@ -1,18 +1,23 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import {
   type GameHistoryItem,
   type GamesListResponse,
   GamesListQuerySchema,
+  type ModeStats,
+  PersonalitySchema,
+  type PersonalityKey,
   type Profile,
   ProfileUpdateRequestSchema,
   type ProfileUpdateResponse,
   SyncAnonRequestSchema,
   type SyncAnonResponse,
+  type UserStatsResponse,
 } from "@cheddr/api-types";
-import { schema } from "@cheddr/db";
+import { schema, type GameOutcome } from "@cheddr/db";
+import type { Difficulty } from "@cheddr/game-engine";
 import { z } from "zod";
 
 import { auth, ensureUser } from "../middleware/auth.js";
@@ -103,6 +108,86 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
+function emptyMode(): ModeStats {
+  return { wins: 0, losses: 0, draws: 0, total: 0 };
+}
+
+function applyResultToMode(mode: ModeStats, result: GameOutcome, count: number) {
+  if (result === "win") mode.wins += count;
+  else if (result === "loss") mode.losses += count;
+  else if (result === "draw") mode.draws += count;
+  mode.total += count;
+}
+
+interface DifficultyAggRow {
+  difficulty: Difficulty;
+  ranked: boolean;
+  result: GameOutcome;
+  count: number;
+}
+
+interface PersonalityAggRow {
+  personality: string | null;
+  ranked: boolean;
+  result: GameOutcome;
+  count: number;
+}
+
+/**
+ * Fold the two grouped scans into the wire response. Pure so it can be
+ * exercised directly from tests without a DB.
+ */
+export function buildUserStatsResponse(
+  difficultyRows: DifficultyAggRow[],
+  personalityRows: PersonalityAggRow[],
+): UserStatsResponse {
+  const byDifficulty: UserStatsResponse["byDifficulty"] = {
+    beginner: { ranked: emptyMode(), casual: emptyMode() },
+    intermediate: { ranked: emptyMode(), casual: emptyMode() },
+    expert: { ranked: emptyMode(), casual: emptyMode() },
+  };
+
+  for (const row of difficultyRows) {
+    const tier = byDifficulty[row.difficulty];
+    if (!tier) continue;
+    const mode = row.ranked ? tier.ranked : tier.casual;
+    applyResultToMode(mode, row.result, row.count);
+  }
+
+  const personalityMap = new Map<
+    PersonalityKey,
+    { ranked: ModeStats; casual: ModeStats }
+  >();
+  for (const row of personalityRows) {
+    const key: PersonalityKey =
+      row.personality !== null && PersonalitySchema.safeParse(row.personality).success
+        ? (row.personality as PersonalityKey)
+        : "unknown";
+    let bucket = personalityMap.get(key);
+    if (!bucket) {
+      bucket = { ranked: emptyMode(), casual: emptyMode() };
+      personalityMap.set(key, bucket);
+    }
+    const mode = row.ranked ? bucket.ranked : bucket.casual;
+    applyResultToMode(mode, row.result, row.count);
+  }
+
+  // Stable, deterministic order: known personalities (in PersonalitySchema
+  // order), then "unknown" last so it doesn't dominate the top of the list.
+  const personalityOrder: PersonalityKey[] = [
+    ...PersonalitySchema.options,
+    "unknown",
+  ];
+  const byPersonality = personalityOrder
+    .filter((key) => personalityMap.has(key))
+    .map((key) => {
+      const bucket = personalityMap.get(key)!;
+      return { personality: key, ranked: bucket.ranked, casual: bucket.casual };
+    });
+
+  return { byDifficulty, byPersonality };
+}
+
 export function createUserRoutes(deps: AppDeps) {
   const { db, redis, clerkSecretKey, jwtSecret } = deps;
   const requireAuth = auth({ db, clerkSecretKey, jwtSecret });
@@ -121,6 +206,58 @@ export function createUserRoutes(deps: AppDeps) {
         throw new HTTPException(404, { message: "User not found" });
       }
       return c.json(toProfile(row));
+    })
+
+    /**
+     * Aggregated breakdown of the signed-in user's full game history.
+     *
+     * The "Overview" / "By Difficulty" / "By Personality" tiles on the
+     * profile screen all derive from this single response so the totals are
+     * guaranteed to reconcile. Two grouped scans:
+     *   1. (difficulty, ranked, result) -> `byDifficulty[tier].{ranked,casual}`
+     *   2. (personality, ranked, result) -> `byPersonality[]`
+     *
+     * `personality IS NULL` rows (legacy games persisted before the column
+     * existed) collapse into the synthetic `"unknown"` bucket.
+     */
+    .get("/stats", async (c) => {
+      const identity = c.get("identity");
+
+      const difficultyRows = await db
+        .select({
+          difficulty: schema.games.difficulty,
+          ranked: schema.games.ranked,
+          result: schema.games.result,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(schema.games)
+        .where(eq(schema.games.userId, identity.id))
+        .groupBy(
+          schema.games.difficulty,
+          schema.games.ranked,
+          schema.games.result,
+        );
+
+      const personalityRows = await db
+        .select({
+          personality: schema.games.personality,
+          ranked: schema.games.ranked,
+          result: schema.games.result,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(schema.games)
+        .where(eq(schema.games.userId, identity.id))
+        .groupBy(
+          schema.games.personality,
+          schema.games.ranked,
+          schema.games.result,
+        );
+
+      const body: UserStatsResponse = buildUserStatsResponse(
+        difficultyRows,
+        personalityRows,
+      );
+      return c.json(body);
     })
 
     .patch(

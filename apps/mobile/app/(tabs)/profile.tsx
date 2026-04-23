@@ -14,7 +14,9 @@ import { useAuth, useClerk } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
 
 import { CombinedStatsPanel } from "@/components/stats/CombinedStatsPanel";
+import { DifficultyBreakdown } from "@/components/profile/DifficultyBreakdown";
 import { EditProfileSheet } from "@/components/profile/EditProfileSheet";
+import { PersonalityBreakdown } from "@/components/profile/PersonalityBreakdown";
 import { PressableScale } from "@/components/PressableScale";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -30,21 +32,21 @@ import { useTabBarScroll } from "@/components/ui/TabBarScrollContext";
 import { WinRateRing } from "@/components/ui/WinRateRing";
 import { useCombinedStats } from "@/hooks/useCombinedStats";
 import { useLocalGameStats } from "@/hooks/useLocalGameStats";
+import { useUserStats } from "@/hooks/useUserStats";
 import { apiGet } from "@/lib/api";
 import { useAuthBootstrap } from "@/providers/AuthBootstrap";
 import { type GameStats } from "@/storage/gameRepository";
 import { tabBar } from "@/theme/tokens";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { Profile } from "@cheddr/api-types";
-import type { Difficulty } from "@cheddr/game-engine";
 
-const SIGNED_IN_TABS = ["Overview", "By Difficulty", "Account"] as const;
-const SIGNED_OUT_TABS = ["By Difficulty", "Account"] as const;
+const SIGNED_IN_TABS = [
+  "Overview",
+  "By Difficulty",
+  "By Personality",
+] as const;
 type SignedInTab = (typeof SIGNED_IN_TABS)[number];
-type SignedOutTab = (typeof SIGNED_OUT_TABS)[number];
-type ProfileTab = SignedInTab | SignedOutTab;
-
-const DIFFICULTIES: Difficulty[] = ["beginner", "intermediate", "expert"];
+type ProfileTab = SignedInTab;
 
 function initialsFrom(name: string | null | undefined): string {
   if (!name || !name.trim()) return "?";
@@ -71,6 +73,7 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<ProfileTab>("Overview");
   const { stats: localStats } = useLocalGameStats();
   const { combined, hasRanked } = useCombinedStats();
+  const { data: userStats } = useUserStats();
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -95,9 +98,9 @@ export default function ProfileScreen() {
   });
 
   // When the user signs out, fall back to a tab that doesn't depend on
-  // server data so we never render an "Overview" empty state.
+  // server data so we never render an empty state for signed-in-only tabs.
   useEffect(() => {
-    if (!isSignedIn && tab === "Overview") {
+    if (!isSignedIn && (tab === "Overview" || tab === "By Personality")) {
       setTab("By Difficulty");
     }
   }, [isSignedIn, tab]);
@@ -141,8 +144,6 @@ export default function ProfileScreen() {
           <ProfileSkeleton />
         ) : !isSignedIn ? (
           <SignedOutProfile
-            tab={tab}
-            onTabChange={setTab}
             localStats={localStats}
             version={version}
             palette={palette}
@@ -238,39 +239,40 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                 </GlassPanel>
+                <GlassPanel variant="panel">
+                  <View className="p-4 gap-0">
+                    <View className="flex-row items-center justify-between py-3">
+                      <Text className="text-primary dark:text-primary-dark font-medium">
+                        Theme
+                      </Text>
+                      <ThemeToggle />
+                    </View>
+                    <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
+                    <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
+                      Version {version}
+                    </Text>
+                    <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
+                    <Pressable
+                      onPress={() => setSignOutOpen(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Sign out"
+                      style={{ minHeight: 48, justifyContent: "center" }}
+                    >
+                      <Text className="text-danger dark:text-danger-dark font-semibold">
+                        Sign out
+                      </Text>
+                    </Pressable>
+                  </View>
+                </GlassPanel>
               </View>
             ) : null}
 
             {tab === "By Difficulty" ? (
-              <DifficultyStats stats={localStats} />
+              <DifficultyBreakdown serverStats={userStats} />
             ) : null}
 
-            {tab === "Account" ? (
-              <GlassPanel variant="panel">
-                <View className="p-4 gap-0">
-                  <View className="flex-row items-center justify-between py-3">
-                    <Text className="text-primary dark:text-primary-dark font-medium">
-                      Theme
-                    </Text>
-                    <ThemeToggle />
-                  </View>
-                  <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-                  <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
-                    Version {version}
-                  </Text>
-                  <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-                  <Pressable
-                    onPress={() => setSignOutOpen(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Sign out"
-                    style={{ minHeight: 48, justifyContent: "center" }}
-                  >
-                    <Text className="text-danger dark:text-danger-dark font-semibold">
-                      Sign out
-                    </Text>
-                  </Pressable>
-                </View>
-              </GlassPanel>
+            {tab === "By Personality" ? (
+              <PersonalityBreakdown serverStats={userStats} />
             ) : null}
           </>
         ) : null}
@@ -407,16 +409,12 @@ function ProfileSkeleton() {
 }
 
 interface SignedOutProfileProps {
-  tab: ProfileTab;
-  onTabChange: (tab: ProfileTab) => void;
   localStats: GameStats;
   version: string;
   palette: ReturnType<typeof useTheme>["palette"];
 }
 
 function SignedOutProfile({
-  tab,
-  onTabChange,
   localStats,
   version,
   palette,
@@ -460,74 +458,23 @@ function SignedOutProfile({
         </PressableScale>
       </View>
 
-      <SegmentedTabs
-        tabs={SIGNED_OUT_TABS}
-        active={tab as SignedOutTab}
-        onChange={(t) => onTabChange(t)}
-      />
+      <DifficultyBreakdown localStats={localStats} />
 
-      {tab === "By Difficulty" ? (
-        <DifficultyStats stats={localStats} />
-      ) : null}
-
-      {tab === "Account" ? (
-        <GlassPanel variant="panel">
-          <View className="p-4 gap-0">
-            <View className="flex-row items-center justify-between py-3">
-              <Text className="text-primary dark:text-primary-dark font-medium">
-                Theme
-              </Text>
-              <ThemeToggle />
-            </View>
-            <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
-            <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
-              Version {version}
+      <GlassPanel variant="panel">
+        <View className="p-4 gap-0">
+          <View className="flex-row items-center justify-between py-3">
+            <Text className="text-primary dark:text-primary-dark font-medium">
+              Theme
             </Text>
+            <ThemeToggle />
           </View>
-        </GlassPanel>
-      ) : null}
+          <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-70" />
+          <Text className="text-secondary dark:text-secondary-dark text-xs py-3">
+            Version {version}
+          </Text>
+        </View>
+      </GlassPanel>
     </>
   );
 }
 
-function DifficultyStats({ stats }: { stats: GameStats }) {
-  return (
-    <View className="gap-3">
-      <Text className="text-xs text-muted dark:text-muted-dark text-center px-2">
-        On this device — casual games by AI difficulty
-      </Text>
-      {DIFFICULTIES.map((d) => {
-        const row = stats.byDifficulty[d];
-        const total = row.wins + row.losses + row.draws;
-        return (
-          <GlassPanel key={d} variant="panel">
-            <View className="p-5">
-              <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark mb-3 capitalize">
-                {d}
-              </Text>
-              <View className="flex-row justify-around">
-                <MiniStat label="W" value={row.wins} />
-                <MiniStat label="L" value={row.losses} />
-                <MiniStat label="D" value={row.draws} />
-              </View>
-              <Text className="text-center text-xs text-muted dark:text-muted-dark mt-3">
-                {total} games
-              </Text>
-            </View>
-          </GlassPanel>
-        );
-      })}
-    </View>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <View className="items-center">
-      <Text className="text-xl font-bold text-primary dark:text-primary-dark">
-        {value}
-      </Text>
-      <Text className="text-xs text-muted dark:text-muted-dark">{label}</Text>
-    </View>
-  );
-}

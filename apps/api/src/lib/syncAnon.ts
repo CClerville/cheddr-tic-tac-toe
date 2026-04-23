@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Redis } from "@upstash/redis";
 import { schema, type Database } from "@cheddr/db";
 
@@ -81,6 +81,10 @@ export async function syncAnonToClerk(
     .where(eq(schema.games.userId, anonId))
     .returning({ id: schema.games.id });
 
+  // The `users` aggregate counters represent ranked progress only (see
+  // `persistTerminalGame` for the matching invariant on the write path).
+  // Recompute by counting only `ranked = true` rows so casual games don't
+  // bleed into the ranked totals during merge.
   const [aggregates] = await db
     .select({
       gamesPlayed: sql<number>`count(*)::int`,
@@ -89,7 +93,9 @@ export async function syncAnonToClerk(
       draws: sql<number>`sum(case when result = 'draw' then 1 else 0 end)::int`,
     })
     .from(schema.games)
-    .where(eq(schema.games.userId, clerkId));
+    .where(
+      and(eq(schema.games.userId, clerkId), eq(schema.games.ranked, true)),
+    );
 
   await db
     .update(schema.users)
