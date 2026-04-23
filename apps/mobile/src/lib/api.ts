@@ -1,8 +1,16 @@
+import {
+  ApiError,
+  ApiErrorResponseSchema,
+  coerceApiErrorCode,
+} from "@cheddr/api-types";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import type { ZodType } from "zod";
 
 import { KEYS, storage } from "./secureStore";
+
+// Re-export the shared ApiError so existing imports (`from "@/lib/api"`) keep working.
+export { ApiError } from "@cheddr/api-types";
 
 /**
  * Pull the API base URL from Expo config, falling back to localhost for
@@ -182,7 +190,7 @@ export async function apiPostStreaming(
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: init?.signal,
+      ...(init?.signal && { signal: init.signal }),
     });
   };
 
@@ -222,7 +230,7 @@ export async function apiPostUnsafe<T, B = unknown>(
 ): Promise<T> {
   const res = await authFetch(path, {
     method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
@@ -235,7 +243,7 @@ export async function apiPost<T, B = unknown>(
 ): Promise<T> {
   const res = await authFetch(path, {
     method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   if (!res.ok) throw await toApiError(res);
   const json: unknown = await res.json();
@@ -248,7 +256,7 @@ export async function apiPatchUnsafe<T, B = unknown>(
 ): Promise<T> {
   const res = await authFetch(path, {
     method: "PATCH",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as T;
@@ -261,38 +269,57 @@ export async function apiPatch<T, B = unknown>(
 ): Promise<T> {
   const res = await authFetch(path, {
     method: "PATCH",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
   if (!res.ok) throw await toApiError(res);
   const json: unknown = await res.json();
   return schema.parse(json);
 }
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public requestId: string | null,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
+/**
+ * Parse a non-OK Response into a typed `ApiError`.
+ *
+ * The server is expected to return the canonical `ApiErrorResponse` shape
+ * (`{ error, message, requestId?, details? }`). We still tolerate older or
+ * non-JSON bodies — fall back to status text so unhandled paths don't crash
+ * the UI mid-rollout.
+ */
 async function toApiError(res: Response): Promise<ApiError> {
-  let message = res.statusText?.trim()
+  const fallbackMessage = res.statusText?.trim()
     ? `${res.status} ${res.statusText}`
     : `HTTP ${res.status}`;
+  const requestIdHeader = res.headers.get("x-request-id");
+
+  let message = fallbackMessage;
+  let code = coerceApiErrorCode(undefined);
+  let requestId: string | null = requestIdHeader;
+  let details: Readonly<Record<string, unknown>> | undefined;
+
   try {
     const text = await res.text();
     if (text) {
       try {
-        const body = JSON.parse(text) as { message?: string; error?: string };
-        if (body.message) message = body.message;
-        else if (body.error) message = body.error;
+        const json: unknown = JSON.parse(text);
+        const parsed = ApiErrorResponseSchema.safeParse(json);
+        if (parsed.success) {
+          message = parsed.data.message;
+          code = coerceApiErrorCode(parsed.data.error);
+          requestId = parsed.data.requestId ?? requestIdHeader;
+          if (parsed.data.details !== undefined) {
+            details = parsed.data.details;
+          }
+        } else if (
+          typeof json === "object" &&
+          json !== null &&
+          !Array.isArray(json)
+        ) {
+          // Best-effort fallback for legacy `{ message }` / `{ error }` shapes.
+          const legacy = json as { message?: unknown; error?: unknown };
+          if (typeof legacy.message === "string") message = legacy.message;
+          else if (typeof legacy.error === "string") message = legacy.error;
+        }
       } catch {
-        // Hono's HTTPException returns the message as plain text; use it
-        // verbatim as long as it isn't just the bare status line.
+        // Plain-text body (e.g. older Hono HTTPException). Use verbatim.
         const trimmed = text.trim();
         if (trimmed && trimmed !== String(res.status)) message = trimmed;
       }
@@ -300,5 +327,12 @@ async function toApiError(res: Response): Promise<ApiError> {
   } catch {
     // body unreadable
   }
-  return new ApiError(message, res.status, res.headers.get("x-request-id"));
+
+  return new ApiError({
+    message,
+    code,
+    status: res.status,
+    requestId,
+    ...(details !== undefined && { details }),
+  });
 }

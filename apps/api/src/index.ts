@@ -1,10 +1,11 @@
 import { serve } from "@hono/node-server";
 import { buildApp } from "./buildApp.js";
 import { getEnv } from "./env.js";
+import { logger } from "./lib/logger.js";
 
 const app = buildApp();
 const env = getEnv();
 
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-  console.log(`API server running at http://localhost:${info.port}`);
+  logger.info("api.listen", { port: info.port });
 });
