@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import Animated, {
   FadeInDown,
@@ -11,14 +12,43 @@ import { useTheme } from "@/theme/ThemeProvider";
 interface GameStatusProps {
   result: GameResult;
   currentPlayer: "X" | "O";
+  /** Explicit AI-wait state (fixes ranked: stale currentPlayer during network). */
+  aiThinking: boolean;
 }
 
-export function GameStatus({ result, currentPlayer }: GameStatusProps) {
+export function GameStatus({
+  result,
+  currentPlayer,
+  aiThinking,
+}: GameStatusProps) {
   const reduceMotion = useReducedMotion();
   const enter = reduceMotion ? undefined : FadeInDown.springify().damping(16);
   const { palette } = useTheme();
-  const dotColor =
-    currentPlayer === "X" ? palette.playerX : palette.playerO;
+  const dotColor = aiThinking
+    ? palette.playerO
+    : currentPlayer === "X"
+      ? palette.playerX
+      : palette.playerO;
+
+  const [dotPhase, setDotPhase] = useState(0);
+  useEffect(() => {
+    if (!aiThinking || reduceMotion) {
+      setDotPhase(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setDotPhase((p) => (p + 1) % 3);
+    }, 450);
+    return () => clearInterval(id);
+  }, [aiThinking, reduceMotion]);
+
+  const turnLabel = aiThinking
+    ? reduceMotion
+      ? "AI thinking..."
+      : `AI thinking${".".repeat(dotPhase + 1)}`
+    : currentPlayer === "X"
+      ? "Your turn"
+      : "Opponent's turn";
 
   const turnRow = (
     <View className="flex-row items-center justify-center gap-2 px-3 py-2">
@@ -33,7 +63,7 @@ export function GameStatus({ result, currentPlayer }: GameStatusProps) {
         importantForAccessibility="no-hide-descendants"
       />
       <Text className="text-center text-lg text-secondary dark:text-secondary-dark">
-        {currentPlayer === "X" ? "Your turn" : "AI thinking..."}
+        {turnLabel}
       </Text>
     </View>
   );

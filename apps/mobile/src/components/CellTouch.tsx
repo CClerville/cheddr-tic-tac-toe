@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
+import { haptics } from "@/lib/haptics";
 import type { CellValue, Position } from "@cheddr/game-engine";
 import type { CellRect } from "./board/boardGeometry";
 
@@ -17,7 +18,7 @@ interface CellTouchProps {
 const ROW_NAMES = ["top", "middle", "bottom"] as const;
 const COL_NAMES = ["left", "middle", "right"] as const;
 
-const TAP_MAX_DISTANCE_PT = 16;
+const TAP_MAX_DISTANCE_PT = 24;
 const TAP_MAX_DURATION_MS = 500;
 
 function describeCell(rect: CellRect, value: CellValue): string {
@@ -44,13 +45,19 @@ export function CellTouch({
         .enabled(interactive)
         .runOnJS(true)
         .onBegin(() => {
+          if (interactive) {
+            haptics.selectionChange();
+          }
           onPressStateChange?.(position);
         })
         .onFinalize(() => {
           onPressStateChange?.(null);
         })
         .onEnd((_event, success) => {
-          if (success) onPress(position);
+          if (success) {
+            haptics.cellTap();
+            onPress(position);
+          }
         }),
     [interactive, onPress, onPressStateChange, position],
   );

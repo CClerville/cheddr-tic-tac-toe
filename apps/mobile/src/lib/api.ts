@@ -232,13 +232,25 @@ export class ApiError extends Error {
 }
 
 async function toApiError(res: Response): Promise<ApiError> {
-  let message = `${res.status} ${res.statusText}`;
+  let message = res.statusText?.trim()
+    ? `${res.status} ${res.statusText}`
+    : `HTTP ${res.status}`;
   try {
-    const body = (await res.json()) as { message?: string; error?: string };
-    if (body.message) message = body.message;
-    else if (body.error) message = body.error;
+    const text = await res.text();
+    if (text) {
+      try {
+        const body = JSON.parse(text) as { message?: string; error?: string };
+        if (body.message) message = body.message;
+        else if (body.error) message = body.error;
+      } catch {
+        // Hono's HTTPException returns the message as plain text; use it
+        // verbatim as long as it isn't just the bare status line.
+        const trimmed = text.trim();
+        if (trimmed && trimmed !== String(res.status)) message = trimmed;
+      }
+    }
   } catch {
-    // body wasn't JSON
+    // body unreadable
   }
   return new ApiError(message, res.status, res.headers.get("x-request-id"));
 }

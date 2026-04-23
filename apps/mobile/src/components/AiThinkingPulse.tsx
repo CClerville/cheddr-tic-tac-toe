@@ -61,7 +61,7 @@ export function AiThinkingPulse({
   }, [active, reduceMotion, t]);
 
   const ringStyle = useAnimatedStyle(() => {
-    const o = 0.55 + t.value * 0.45;
+    const o = 0.82 + t.value * 0.13;
     return {
       opacity: o,
       borderColor: RING_CYAN,
@@ -76,7 +76,7 @@ export function AiThinkingPulse({
         <View
           style={[
             ringBase(size),
-            { opacity: 0.82, borderColor: RING_CYAN },
+            { opacity: 0.95, borderColor: RING_CYAN },
           ]}
         />
       </View>

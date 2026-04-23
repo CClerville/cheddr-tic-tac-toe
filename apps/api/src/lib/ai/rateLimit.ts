@@ -22,17 +22,17 @@ export function createUpstashAiLimiters(redis: Redis): AiLimiters {
   return {
     commentary: new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(30, "1 m"),
+      limiter: Ratelimit.slidingWindow(50, "1 m"),
       prefix: "cheddr:ai:commentary",
     }),
     hint: new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(10, "1 m"),
+      limiter: Ratelimit.slidingWindow(50, "1 m"),
       prefix: "cheddr:ai:hint",
     }),
     analysis: new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(5, "1 h"),
+      limiter: Ratelimit.slidingWindow(50, "1 h"),
       prefix: "cheddr:ai:analysis",
     }),
   };
