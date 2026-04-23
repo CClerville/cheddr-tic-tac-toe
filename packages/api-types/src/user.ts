@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PersonalitySchema } from "./ai";
 import { DifficultySchema, GameOutcomeSchema, PositionSchema } from "./primitives";
 
 export const ProfileSchema = z.object({
@@ -110,3 +111,54 @@ export const SyncAnonResponseSchema = z.object({
   profile: ProfileSchema,
 });
 export type SyncAnonResponse = z.infer<typeof SyncAnonResponseSchema>;
+
+/**
+ * Win/loss/draw counts for a single (mode × group) bucket. `total` is
+ * pre-summed by the server so clients render percentages without re-counting.
+ */
+export const ModeStatsSchema = z.object({
+  wins: z.number().int().nonnegative(),
+  losses: z.number().int().nonnegative(),
+  draws: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+});
+export type ModeStats = z.infer<typeof ModeStatsSchema>;
+
+/** Ranked + casual splits for a single difficulty tier. */
+export const DifficultyModeStatsSchema = z.object({
+  ranked: ModeStatsSchema,
+  casual: ModeStatsSchema,
+});
+export type DifficultyModeStats = z.infer<typeof DifficultyModeStatsSchema>;
+
+/**
+ * Personality grouping key. `unknown` is the synthetic bucket for legacy
+ * `games.personality IS NULL` rows persisted before the column existed.
+ */
+export const PersonalityKeySchema = z.union([
+  PersonalitySchema,
+  z.literal("unknown"),
+]);
+export type PersonalityKey = z.infer<typeof PersonalityKeySchema>;
+
+export const PersonalityStatsRowSchema = z.object({
+  personality: PersonalityKeySchema,
+  ranked: ModeStatsSchema,
+  casual: ModeStatsSchema,
+});
+export type PersonalityStatsRow = z.infer<typeof PersonalityStatsRowSchema>;
+
+/**
+ * Response for `GET /user/stats`. The `byDifficulty` map is always populated
+ * with all three tiers (zero-filled when there are no games for a tier);
+ * `byPersonality` only includes personalities the user has actually played.
+ */
+export const UserStatsResponseSchema = z.object({
+  byDifficulty: z.object({
+    beginner: DifficultyModeStatsSchema,
+    intermediate: DifficultyModeStatsSchema,
+    expert: DifficultyModeStatsSchema,
+  }),
+  byPersonality: z.array(PersonalityStatsRowSchema),
+});
+export type UserStatsResponse = z.infer<typeof UserStatsResponseSchema>;

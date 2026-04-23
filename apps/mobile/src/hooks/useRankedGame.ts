@@ -80,12 +80,15 @@ export function useRankedGame(options: UseRankedGameOptions) {
   });
 
   // Server profile (ELO + ranked W/L/D) is the canonical source for ranked
-  // counts. Whenever a ranked game terminates we invalidate the cached
-  // profile so any subscribed screen — Home, Stats, Profile — re-fetches
-  // and shows the up-to-date totals on its next render.
-  const invalidateProfile = useCallback(() => {
-    if (!ranked) return;
-    void queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+  // counts. The /user/stats endpoint splits ranked/casual by difficulty and
+  // personality. Whenever a server-persisted game terminates (ranked OR
+  // casual) we refresh stats; ranked games additionally bust /user/me so
+  // ELO updates everywhere.
+  const invalidateAfterTerminal = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["user", "stats"] });
+    if (ranked) {
+      void queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+    }
   }, [queryClient, ranked]);
 
   const start = useCallback(async () => {
@@ -148,7 +151,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           if (res.outcome === "win") haptics.win();
           else if (res.outcome === "loss") haptics.loss();
           else if (res.outcome === "draw") haptics.draw();
-          invalidateProfile();
+          invalidateAfterTerminal();
         } else {
           haptics.pieceLanded();
         }
@@ -207,7 +210,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         }
       }
     },
-    [state.sessionId, state.phase, difficulty, invalidateProfile],
+    [state.sessionId, state.phase, difficulty, invalidateAfterTerminal],
   );
 
   const resign = useCallback(async () => {
@@ -228,7 +231,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         eloDelta: res.eloDelta,
         gameId: res.gameId,
       });
-      invalidateProfile();
+      invalidateAfterTerminal();
     } catch (err) {
       try {
         const dto = await apiGet<GameStateDTO>(
@@ -256,7 +259,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         }));
       }
     }
-  }, [state.sessionId, invalidateProfile]);
+  }, [state.sessionId, invalidateAfterTerminal]);
 
   return {
     ...state,

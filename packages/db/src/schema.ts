@@ -12,6 +12,16 @@ import type { Difficulty, Position } from "@cheddr/game-engine";
 
 export type UserKind = "clerk" | "anon";
 export type GameOutcome = "win" | "loss" | "draw";
+/**
+ * Mirrors `PersonalitySchema` in `@cheddr/api-types`. Kept as a string-literal
+ * union here (rather than importing) so `@cheddr/db` stays free of api-types
+ * dependency.
+ */
+export type GamePersonality =
+  | "trash_talk"
+  | "coach"
+  | "zen_master"
+  | "sports_caster";
 
 /**
  * `users` stores both signed-in (Clerk) accounts and anonymous device
@@ -54,6 +64,12 @@ export const games = pgTable(
     durationMs: integer("duration_ms"),
     eloDelta: integer("elo_delta").notNull().default(0),
     ranked: boolean("ranked").notNull().default(true),
+    /**
+     * AI personality used for the game (matches `PersonalitySchema` in
+     * `@cheddr/api-types`). Nullable for legacy rows persisted before this
+     * column existed; new writes always populate it via the session.
+     */
+    personality: text("personality").$type<GamePersonality>(),
     /** LLM post-game analysis JSON (`AnalysisResponse` from `@cheddr/api-types`). */
     aiAnalysis: jsonb("ai_analysis").$type<unknown>(),
     createdAt: timestamp("created_at", { withTimezone: true })

@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-expo";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -35,15 +36,32 @@ export default function GameScreen() {
   const initialDifficulty = parseDifficulty(params.difficulty);
   const isRanked = params.ranked === "1";
   const personality = parsePersonality(params.personality);
+  const { isSignedIn } = useAuth();
 
-  return isRanked ? (
-    <RankedGameScreen difficulty={initialDifficulty} personality={personality} />
+  // Server-backed when ranked OR when the user is signed in (so casual
+  // games sync across devices and feed the per-personality breakdown).
+  // Anonymous + casual stays purely local to keep offline play snappy
+  // and avoid double-counting against signed-in casual aggregates.
+  const useServer = isRanked || isSignedIn === true;
+
+  return useServer ? (
+    <ServerGameScreen
+      difficulty={initialDifficulty}
+      personality={personality}
+      ranked={isRanked}
+    />
   ) : (
-    <LocalGameScreen difficulty={initialDifficulty} />
+    <LocalGameScreen difficulty={initialDifficulty} personality={personality} />
   );
 }
 
-function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Difficulty }) {
+function LocalGameScreen({
+  difficulty: initialDifficulty,
+  personality,
+}: {
+  difficulty: Difficulty;
+  personality: Personality;
+}) {
   const { gameState, difficulty, phase, playMove, resetGame } = useGame({
     initialDifficulty,
     hydrate: false,
@@ -56,7 +74,7 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
     eloDelta: null,
     ranked: false,
     gameId: null,
-    personality: "coach",
+    personality,
   });
 
   return (
@@ -77,16 +95,18 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
   );
 }
 
-function RankedGameScreen({
+function ServerGameScreen({
   difficulty: initialDifficulty,
   personality,
+  ranked: isRanked,
 }: {
   difficulty: Difficulty;
   personality: Personality;
+  ranked: boolean;
 }) {
   const ranked = useRankedGame({
     difficulty: initialDifficulty,
-    ranked: true,
+    ranked: isRanked,
     personality,
   });
   const [hintCell, setHintCell] = useState<Position | null>(null);
@@ -107,7 +127,7 @@ function RankedGameScreen({
     result: ranked.gameState.result,
     difficulty: initialDifficulty,
     eloDelta: ranked.eloDelta,
-    ranked: true,
+    ranked: isRanked,
     gameId: ranked.gameId,
     personality,
   });
@@ -119,7 +139,11 @@ function RankedGameScreen({
     !ranked.loading;
 
   return (
-    <Shell title={`${initialDifficulty} · Ranked`} onReset={ranked.resetGame} overlay>
+    <Shell
+      title={`${initialDifficulty} · ${isRanked ? "Ranked" : "Casual"}`}
+      onReset={ranked.resetGame}
+      overlay
+    >
       {ranked.error ? (
         <Text className="text-red-500 text-center">{ranked.error}</Text>
       ) : null}

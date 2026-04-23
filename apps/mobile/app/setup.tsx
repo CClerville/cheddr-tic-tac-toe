@@ -54,7 +54,9 @@ export default function SetupScreen() {
               <Text className="text-xs text-secondary dark:text-secondary-dark mt-1">
                 {ranked
                   ? "Server-validated. Counts toward ELO and leaderboard."
-                  : "Casual offline play. Doesn't affect rank."}
+                  : isSignedIn
+                    ? "Casual play. Syncs across your devices but doesn't affect rank."
+                    : "Casual offline play. Doesn't affect rank."}
               </Text>
               {ranked && !isSignedIn ? (
                 <Text className="text-xs text-accent dark:text-accent-dark mt-1">
@@ -73,7 +75,7 @@ export default function SetupScreen() {
           </View>
         </GlassPanel>
 
-        {ranked ? (
+        {ranked || isSignedIn ? (
           <GlassPanel variant="panel" style={{ width: "100%" }}>
             <View className="px-4 py-3">
               <PersonalityPicker value={personality} onChange={setPersonality} />
@@ -91,7 +93,7 @@ export default function SetupScreen() {
               params: {
                 difficulty,
                 ranked: ranked ? "1" : "0",
-                ...(ranked ? { personality } : {}),
+                personality,
               },
             });
             queueMicrotask(() => haptics.selectionChange());
