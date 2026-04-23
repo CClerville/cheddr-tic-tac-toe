@@ -64,13 +64,14 @@ function LocalGameScreen({ difficulty: initialDifficulty }: { difficulty: Diffic
       <GameStatus
         result={gameState.result}
         currentPlayer={gameState.currentPlayer}
+        aiThinking={phase === "ai_thinking"}
       />
       <Board
         board={gameState.board}
         result={gameState.result}
         onCellPress={playMove}
         disabled={phase !== "player_turn"}
-        currentPlayer={gameState.currentPlayer}
+        aiThinking={phase === "ai_thinking"}
       />
     </Shell>
   );
@@ -123,6 +124,7 @@ function RankedGameScreen({
       <GameStatus
         result={ranked.gameState.result}
         currentPlayer={ranked.gameState.currentPlayer}
+        aiThinking={ranked.phase === "ai_thinking"}
       />
       <View className="flex-row justify-center gap-3 w-full max-w-sm">
         <HintButton
@@ -139,7 +141,7 @@ function RankedGameScreen({
           void ranked.playMove(pos);
         }}
         disabled={ranked.phase !== "player_turn" || ranked.loading}
-        currentPlayer={ranked.gameState.currentPlayer}
+        aiThinking={ranked.phase === "ai_thinking"}
         hintCell={hintCell}
       />
       <CommentaryBubble

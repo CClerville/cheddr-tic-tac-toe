@@ -119,26 +119,31 @@ function NeumorphicCellFace({
       ? "rgba(255,255,255,0.05)"
       : "rgba(0,0,0,0.04)"
     : palette.elevated;
-  const dx = pressed ? 1 : 3;
-  const dy = pressed ? 1 : 4;
+  /** Fixed shadow offset — no geometry jump on press (depth fades instead). */
+  const shadowDx = 3;
+  const shadowDy = 4;
+  const shadowOpacity = pressed ? 0.38 : 1;
+  const hiOpacity = pressed ? 0.55 : 1;
 
   return (
     <Group>
       <RoundedRect
-        x={x + dx}
-        y={y + dy}
+        x={x + shadowDx}
+        y={y + shadowDy}
         width={w}
         height={h}
         r={r}
         color={depth}
+        opacity={shadowOpacity}
       />
       <RoundedRect
-        x={x - (pressed ? 0 : 1)}
-        y={y - (pressed ? 0 : 1)}
+        x={x}
+        y={y}
         width={w}
         height={h}
         r={r}
         color={hi}
+        opacity={hiOpacity}
       />
       <RoundedRect x={x} y={y} width={w} height={h} r={r} color={face} />
     </Group>

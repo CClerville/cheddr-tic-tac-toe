@@ -126,7 +126,6 @@ export function useRankedGame(options: UseRankedGameOptions) {
     async (position: Position) => {
       if (!state.sessionId) return;
       if (state.phase !== "player_turn") return;
-      haptics.cellTap();
       setState((s) => ({ ...s, loading: true, phase: "ai_thinking" }));
       try {
         const res = await apiPost<MoveResponse>("/game/move", {

@@ -138,7 +138,6 @@ export function useGame(options: UseGameOptions | Difficulty = {}) {
       if (phase !== "player_turn") return;
       try {
         const next = makeMove(gameState, position);
-        haptics.cellTap();
         setGameState(next);
         setPhase(derivePhase(next));
       } catch {
