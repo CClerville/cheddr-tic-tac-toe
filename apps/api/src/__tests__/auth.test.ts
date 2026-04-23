@@ -1,16 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { Buffer } from "node:buffer";
+
+import { describe, expect, it, vi, afterEach } from "vitest";
+
+vi.mock("../lib/clerkVerify.js", () => ({
+  verifyClerkSessionToken: vi.fn(),
+}));
 import { eq } from "drizzle-orm";
 import { schema } from "@cheddr/db";
 
 import { createApp } from "../app.js";
 import { createAuthRoutes } from "../routes/auth.js";
 import { mintAnonToken, verifyAnonToken } from "../lib/anonToken.js";
-import { createHarness } from "./harness.js";
+import { verifyClerkSessionToken } from "../lib/clerkVerify.js";
+import { createHarness, type CreateHarnessOptions } from "./harness.js";
 
-async function build() {
-  const harness = await createHarness();
+async function build(harnessOptions?: CreateHarnessOptions) {
+  const harness = await createHarness(harnessOptions);
   const app = createApp().route("/auth", createAuthRoutes(harness.deps));
   return { harness, app };
+}
+
+/** JWT with RS256 + kid so auth attempts Clerk (signature is bogus). */
+function fakeRs256SessionJwt(): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "RS256", kid: "ins_testkeyid123456789" }),
+  ).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ sub: "user_123" })).toString("base64url");
+  return `${header}.${payload}.invalid-signature`;
 }
 
 describe("anon token mint/verify", () => {
@@ -118,5 +134,62 @@ describe("GET /auth/me", () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("auth bearer routing with Clerk key configured", () => {
+  afterEach(() => {
+    vi.mocked(verifyClerkSessionToken).mockReset();
+  });
+
+  it("does not call Clerk verify for HS256 anon tokens", async () => {
+    const { harness, app } = await build({
+      clerkSecretKey: "sk_test_dummy_clerk_secret_key_placeholder",
+    });
+    const { token, userId } = await harness.signInAnon();
+
+    const res = await app.request("/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(verifyClerkSessionToken)).not.toHaveBeenCalled();
+    const body = (await res.json()) as {
+      identity: { kind: string; id: string; elo: number };
+    };
+    expect(body.identity.kind).toBe("anon");
+    expect(body.identity.id).toBe(userId);
+  });
+
+  it("returns 401 when RS256 token fails Clerk and anon verify", async () => {
+    vi.mocked(verifyClerkSessionToken).mockRejectedValue(new Error("JWT invalid"));
+    const { app } = await build({ clerkSecretKey: "sk_test_dummy_clerk_secret_key_placeholder" });
+    const token = fakeRs256SessionJwt();
+
+    const res = await app.request("/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(401);
+    expect(vi.mocked(verifyClerkSessionToken)).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts identity from Clerk when Clerk verify succeeds", async () => {
+    vi.mocked(verifyClerkSessionToken).mockResolvedValue({
+      sub: "user_vitest_clerk_auth",
+    } as Awaited<ReturnType<typeof verifyClerkSessionToken>>);
+
+    const { app } = await build({ clerkSecretKey: "sk_test_dummy_clerk_secret_key_placeholder" });
+    const token = fakeRs256SessionJwt();
+
+    const res = await app.request("/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      identity: { kind: string; id: string };
+    };
+    expect(body.identity.kind).toBe("clerk");
+    expect(body.identity.id).toBe("user_vitest_clerk_auth");
+    expect(vi.mocked(verifyClerkSessionToken)).toHaveBeenCalledTimes(1);
   });
 });

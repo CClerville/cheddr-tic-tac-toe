@@ -63,7 +63,7 @@ export async function clearAnon(): Promise<void> {
 async function ensureDeviceId(): Promise<string> {
   const existing = await storage.getItem(KEYS.DEVICE_ID);
   if (existing) return existing;
-  // Hermes has no global `crypto`. expo-crypto is sync and Hermes-safe.
+  // Hermes lacks `globalThis.crypto`; expo-crypto provides a sync UUID.
   const id = Crypto.randomUUID();
   await storage.setItem(KEYS.DEVICE_ID, id);
   return id;
