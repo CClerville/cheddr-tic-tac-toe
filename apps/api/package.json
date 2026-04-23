@@ -8,6 +8,7 @@
     "build": "tsc",
     "test": "vitest run",
     "reconcile:stats": "tsx src/scripts/reconcileUserStats.ts",
+    "eval:commentary": "tsx --env-file=.env.local src/scripts/evalCommentary.ts",
     "test:watch": "vitest",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",

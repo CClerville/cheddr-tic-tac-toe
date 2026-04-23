@@ -39,6 +39,8 @@ const EnvSchema = z.object({
   AI_GATEWAY_API_KEY: z.string().optional(),
   /** Gateway model id, e.g. `openai/gpt-4o-mini`. */
   AI_MODEL: z.string().optional(),
+  /** Gateway model for streaming `/ai/commentary` only (stronger default for spatial accuracy). */
+  AI_MODEL_COMMENTARY: z.string().optional(),
   /** Hard cap on total tokens per user per UTC day (all AI features). */
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().optional(),
   /** Aggregate cap across all users per UTC day (billing / abuse safety). */

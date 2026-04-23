@@ -79,6 +79,16 @@ pnpm --filter @cheddr/api reconcile:stats
 pnpm --filter @cheddr/api reconcile:stats -- --dry-run
 ```
 
+### AI: commentary spatial eval (manual, costs tokens)
+
+Not run in CI. Before changing `AI_MODEL_COMMENTARY` or commentary prompts, run against the Vercel AI Gateway with `AI_GATEWAY_API_KEY` set (e.g. in `apps/api/.env.local`). Exits with code `1` if the pass rate falls below 90%.
+
+```bash
+pnpm --filter @cheddr/api eval:commentary
+```
+
+Fixtures live at [`apps/api/src/__tests__/fixtures/commentary-eval.json`](../apps/api/src/__tests__/fixtures/commentary-eval.json).
+
 ## Mobile PR workflow (`mobile.yml`)
 
 - **`build` job** — Installs dependencies and builds `packages/*` only. Does **not** use `EXPO_TOKEN`, so fork PRs and secret-less forks still get a green compile check.

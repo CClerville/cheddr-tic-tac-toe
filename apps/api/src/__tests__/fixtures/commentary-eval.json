@@ -1,0 +1,114 @@
+[
+  {
+    "id": "x_open_center",
+    "board": [null, null, null, null, "X", null, null, null, null],
+    "moveHistory": [4],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "x_middle_right_o_corner",
+    "board": ["O", null, null, null, null, "X", null, null, null],
+    "moveHistory": [5, 0],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "corner_opening",
+    "board": ["X", null, null, null, null, null, null, null, null],
+    "moveHistory": [0],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "two_moves_each",
+    "board": ["X", null, "O", null, "X", null, null, null, "O"],
+    "moveHistory": [0, 2, 4, 8],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "diagonal_pressure",
+    "board": ["X", null, null, null, "O", null, null, null, "X"],
+    "moveHistory": [0, 4, 8],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "bottom_row_activity",
+    "board": [null, null, null, null, null, null, "X", "O", null],
+    "moveHistory": [6, 7],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "top_row_mixed",
+    "board": ["X", "O", "X", null, null, null, null, null, null],
+    "moveHistory": [0, 1, 2],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "middle_column",
+    "board": [null, "X", null, null, "O", null, null, "X", null],
+    "moveHistory": [1, 4, 7],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "almost_full",
+    "board": ["X", "O", "X", "O", "X", "O", "O", "X", null],
+    "moveHistory": [0, 1, 2, 3, 4, 5, 6, 7],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "draw_terminal",
+    "board": ["X", "O", "X", "O", "O", "X", "O", "X", "O"],
+    "moveHistory": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    "trigger": "terminal",
+    "result": { "status": "draw" }
+  },
+  {
+    "id": "x_wing",
+    "board": ["X", null, null, null, null, "X", null, null, null],
+    "moveHistory": [0, 5],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "edge_play",
+    "board": [null, "X", null, null, null, null, null, null, null],
+    "moveHistory": [1],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "fork_setup",
+    "board": ["X", null, null, null, "O", null, null, null, "X"],
+    "moveHistory": [0, 4, 8],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "dense_center",
+    "board": ["O", "X", null, null, "X", "O", null, null, null],
+    "moveHistory": [1, 0, 4, 5],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "last_x_bottom_right",
+    "board": ["O", null, null, null, null, null, null, null, "X"],
+    "moveHistory": [0, 8],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  },
+  {
+    "id": "side_stack",
+    "board": [null, null, null, "X", "O", "X", null, null, null],
+    "moveHistory": [3, 4, 5],
+    "trigger": "move",
+    "result": { "status": "in_progress" }
+  }
+]
