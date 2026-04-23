@@ -83,7 +83,7 @@ export function Board({
         <BoardCanvas
           board={board}
           result={result}
-          size={side}
+          geometry={geometry}
           pressedCell={pressedCell}
           hintCell={hintCell}
         />

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import {
   type GameHistoryItem,
   type GamesListResponse,
@@ -13,6 +13,7 @@ import {
   type SyncAnonResponse,
 } from "@cheddr/api-types";
 import { schema } from "@cheddr/db";
+import { z } from "zod";
 
 import { auth, ensureUser } from "../middleware/auth.js";
 import { verifyAnonToken } from "../lib/anonToken.js";
@@ -44,12 +45,62 @@ function toProfile(row: UserRow): Profile {
  * but we also fall back to a substring match in case a wrapper rewrites
  * the shape.
  */
+/** Opaque cursor: last row's game id (keyset via pivot lookup). */
+function encodeGameCursor(row: { id: string }): string {
+  return row.id;
+}
+
+type ParsedGamesCursor =
+  | { kind: "none" }
+  | { kind: "legacy"; at: Date }
+  | { kind: "composite"; at: Date; id: string }
+  | { kind: "pivot"; id: string }
+  | { kind: "invalid" };
+
+function parseGamesCursor(cursor: string | undefined): ParsedGamesCursor {
+  if (!cursor) return { kind: "none" };
+  if (cursor.includes("|")) {
+    const pipe = cursor.indexOf("|");
+    const left = cursor.slice(0, pipe);
+    const id = cursor.slice(pipe + 1);
+    if (!z.string().uuid().safeParse(id).success) {
+      return { kind: "invalid" };
+    }
+    const asMillis = Number(left);
+    if (Number.isFinite(asMillis) && asMillis >= 0 && /^\d+$/.test(left)) {
+      return { kind: "composite", at: new Date(asMillis), id };
+    }
+    const at = new Date(left);
+    if (!Number.isFinite(at.getTime())) return { kind: "invalid" };
+    return { kind: "composite", at, id };
+  }
+  if (z.string().uuid().safeParse(cursor).success) {
+    return { kind: "pivot", id: cursor };
+  }
+  const at = new Date(cursor);
+  if (!Number.isFinite(at.getTime())) return { kind: "invalid" };
+  return { kind: "legacy", at };
+}
+
 function isUniqueViolation(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const code = (err as { code?: unknown }).code;
-  if (code === "23505") return true;
-  const msg = (err as { message?: unknown }).message;
-  return typeof msg === "string" && msg.includes("users_username_unique");
+  const codes = new Set<string>();
+  const messages: string[] = [];
+  let cur: unknown = err;
+  for (let i = 0; i < 12 && cur; i++) {
+    if (typeof cur === "object" && cur !== null) {
+      const o = cur as Record<string, unknown>;
+      if (typeof o.code === "string") codes.add(o.code);
+      if (typeof o.message === "string") messages.push(o.message);
+      cur = o.cause ?? o.originalError ?? null;
+    } else {
+      break;
+    }
+  }
+  if (codes.has("23505")) return true;
+  return messages.some(
+    (m) =>
+      /duplicate key|unique constraint|violates unique constraint/i.test(m),
+  );
 }
 
 export function createUserRoutes(deps: AppDeps) {
@@ -132,18 +183,62 @@ export function createUserRoutes(deps: AppDeps) {
       const identity = c.get("identity");
       const { limit, cursor } = c.req.valid("query");
 
-      const where = cursor
-        ? and(
-            eq(schema.games.userId, identity.id),
-            lt(schema.games.createdAt, new Date(cursor)),
+      const parsed = parseGamesCursor(cursor);
+      if (parsed.kind === "invalid") {
+        throw new HTTPException(400, { message: "Invalid games cursor" });
+      }
+
+      const uid = eq(schema.games.userId, identity.id);
+      let where;
+      if (parsed.kind === "none") {
+        where = uid;
+      } else if (parsed.kind === "legacy") {
+        where = and(uid, lt(schema.games.createdAt, parsed.at));
+      } else if (parsed.kind === "composite") {
+        where = and(
+          uid,
+          or(
+            lt(schema.games.createdAt, parsed.at),
+            and(
+              eq(schema.games.createdAt, parsed.at),
+              lt(schema.games.id, parsed.id),
+            ),
+          ),
+        );
+      } else {
+        const [pivot] = await db
+          .select({
+            createdAt: schema.games.createdAt,
+            id: schema.games.id,
+          })
+          .from(schema.games)
+          .where(
+            and(
+              eq(schema.games.userId, identity.id),
+              eq(schema.games.id, parsed.id),
+            ),
           )
-        : eq(schema.games.userId, identity.id);
+          .limit(1);
+        if (!pivot) {
+          throw new HTTPException(400, { message: "Invalid games cursor" });
+        }
+        where = and(
+          uid,
+          or(
+            lt(schema.games.createdAt, pivot.createdAt),
+            and(
+              eq(schema.games.createdAt, pivot.createdAt),
+              lt(schema.games.id, pivot.id),
+            ),
+          ),
+        );
+      }
 
       const rows = await db
         .select()
         .from(schema.games)
         .where(where)
-        .orderBy(desc(schema.games.createdAt))
+        .orderBy(desc(schema.games.createdAt), desc(schema.games.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
@@ -158,9 +253,11 @@ export function createUserRoutes(deps: AppDeps) {
         createdAt: r.createdAt.toISOString(),
       }));
 
+      const lastRow = hasMore ? rows[limit - 1] : undefined;
       const body: GamesListResponse = {
         items,
-        nextCursor: hasMore ? items[items.length - 1].createdAt : null,
+        nextCursor:
+          lastRow !== undefined ? encodeGameCursor(lastRow) : null,
       };
       return c.json(body);
     })

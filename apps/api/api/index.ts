@@ -29,11 +29,10 @@ function build(): void {
   }
 }
 
-function unavailable(error: Error): Response {
+function unavailable(_error: Error): Response {
   const body = {
     error: "service_unavailable",
     message: "API failed to initialize. Check server environment configuration.",
-    detail: error.message,
   };
   return new Response(JSON.stringify(body), {
     status: 503,

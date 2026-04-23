@@ -22,6 +22,18 @@ export function initSentry(): void {
     environment: __DEV__ ? "development" : "production",
     tracesSampleRate: __DEV__ ? 1.0 : 0.1,
     enableAutoSessionTracking: true,
+    beforeSend(event) {
+      const req = event.request;
+      if (req?.headers) {
+        const h = { ...req.headers };
+        delete h.Authorization;
+        delete h.authorization;
+        delete h.Cookie;
+        delete h.cookie;
+        event.request = { ...req, headers: h };
+      }
+      return event;
+    },
   });
 }
 

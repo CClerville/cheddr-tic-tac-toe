@@ -64,6 +64,7 @@ describe("GET /user/games", () => {
       `/user/games?limit=10&cursor=${encodeURIComponent(page1.nextCursor!)}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
+    expect(r2.status).toBe(200);
     const page2 = (await r2.json()) as {
       items: { id: string }[];
       nextCursor: string | null;
@@ -74,6 +75,16 @@ describe("GET /user/games", () => {
       .map((i) => i.id)
       .filter((id) => page2.items.some((b) => b.id === id));
     expect(overlap).toHaveLength(0);
+  });
+
+  it("returns 400 for an invalid games cursor", async () => {
+    const { harness, app } = await build();
+    const { token } = await harness.signInAnon();
+    const res = await app.request(
+      "/user/games?limit=5&cursor=not-a-valid-cursor",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    expect(res.status).toBe(400);
   });
 });
 

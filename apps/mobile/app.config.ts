@@ -13,6 +13,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const existingExtra = (config.extra ?? {}) as Record<string, unknown>;
   const existingEas = (existingExtra.eas ?? {}) as Record<string, unknown>;
 
+  /** PEM path from EAS env — enables verified OTA bundles. See Expo code signing docs. */
+  const codeSigningCertificate =
+    process.env.EAS_UPDATE_CODE_SIGNING_CERTIFICATE?.trim();
+
   return {
     ...config,
     name: config.name ?? "Cheddr Tic-Tac-Toe",
@@ -20,7 +24,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     runtimeVersion: { policy: "appVersion" },
     ...(projectId
       ? {
-          updates: { url: `https://u.expo.dev/${projectId}` },
+          updates: {
+            url: `https://u.expo.dev/${projectId}`,
+            ...(codeSigningCertificate
+              ? { codeSigningCertificate }
+              : {}),
+          },
           extra: {
             ...existingExtra,
             eas: { ...existingEas, projectId },

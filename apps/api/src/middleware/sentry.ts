@@ -10,15 +10,15 @@ import type { AppBindings } from "../types.js";
  */
 export function sentryScope(): MiddlewareHandler<AppBindings> {
   return async (c, next) => {
-    Sentry.withScope((scope) => {
+    await Sentry.withScope(async (scope) => {
       scope.setTag("request_id", c.get("requestId"));
       scope.setTag("route", `${c.req.method} ${c.req.path}`);
+      await next();
+      const identity = c.get("identity");
+      if (identity) {
+        scope.setUser({ id: identity.id, username: identity.username ?? undefined });
+      }
     });
-    await next();
-    const identity = c.get("identity");
-    if (identity) {
-      Sentry.setUser({ id: identity.id, username: identity.username ?? undefined });
-    }
   };
 }
 
@@ -34,6 +34,15 @@ export const sentryErrorHandler: ErrorHandler<AppBindings> = (err, c) => {
     Sentry.captureException(err, {
       tags: { request_id: c.get("requestId") ?? "unknown" },
     });
+    // Surface the full stack in non-production logs so unexpected 500s
+    // are debuggable without round-tripping through Sentry. Production
+    // still relies on Sentry to avoid noisy stdout in serverless logs.
+    if (process.env.NODE_ENV !== "production") {
+      console.error(
+        `[error] ${c.req.method} ${c.req.path} request_id=${c.get("requestId") ?? "unknown"}`,
+        err,
+      );
+    }
   }
   if (err instanceof HTTPException) {
     return err.getResponse();

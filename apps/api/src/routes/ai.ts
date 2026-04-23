@@ -25,14 +25,19 @@ import { formatMoveHistory, serializeBoard } from "../lib/ai/board.js";
 import { personalitySystemPrompt } from "../lib/ai/personalities.js";
 import { resolveAiLimiters } from "../lib/ai/rateLimit.js";
 import {
-  getDailyTokenUsage,
-  incrementDailyTokenUsage,
+  dailyTokenBudget,
+  globalDailyTokenBudget,
+  settleAiTokenReservation,
+  tryReserveAiTokens,
 } from "../lib/ai/usage.js";
 import { setGameAiAnalysis } from "../lib/persist.js";
-import { getSession, loadSessionOrSnapshotForAi, updateSession } from "../lib/session.js";
+import {
+  appendCommentaryLine,
+  getSession,
+  loadSessionOrSnapshotForAi,
+} from "../lib/session.js";
 import { auth } from "../middleware/auth.js";
 import type { AppBindings, AppDeps } from "../types.js";
-import { getEnv } from "../env.js";
 
 const HintObjectSchema = z.object({
   position: PositionSchema,
@@ -40,8 +45,22 @@ const HintObjectSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-function dailyTokenBudget(): number {
-  return getEnv().AI_DAILY_TOKEN_BUDGET ?? 500_000;
+function rateLimitedResponse(
+  message: string,
+  retryAfterSeconds: number,
+): HTTPException {
+  return new HTTPException(429, {
+    res: new Response(
+      JSON.stringify({ error: "rate_limited", message }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(Math.max(1, retryAfterSeconds)),
+        },
+      },
+    ),
+  });
 }
 
 /**
@@ -114,15 +133,21 @@ export function createAiRoutes(deps: AppDeps) {
       const rl = await limiters.commentary.limit(identity.id);
       void rl.pending;
       if (!rl.success) {
-        c.header(
-          "Retry-After",
-          String(Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))),
+        throw rateLimitedResponse(
+          "Too many commentary requests",
+          Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000)),
         );
-        throw new HTTPException(429, { message: "Too many commentary requests" });
       }
 
-      const used = await getDailyTokenUsage(redis, identity.id);
-      if (used >= dailyTokenBudget()) {
+      const reserveAmount = 200;
+      const reserveResult = await tryReserveAiTokens(
+        redis,
+        identity.id,
+        reserveAmount,
+        dailyTokenBudget(),
+        globalDailyTokenBudget(),
+      );
+      if (!reserveResult.ok) {
         throw new HTTPException(402, { message: "ai_quota_exceeded" });
       }
 
@@ -143,6 +168,7 @@ export function createAiRoutes(deps: AppDeps) {
       ].join("\n");
 
       const rid = c.get("requestId");
+      const sessionId = session.id;
       const result = streamText({
         model,
         system,
@@ -156,13 +182,14 @@ export function createAiRoutes(deps: AppDeps) {
         },
         onFinish: async ({ text, totalUsage }) => {
           const t = totalUsage?.totalTokens ?? 0;
-          await incrementDailyTokenUsage(redis, identity.id, t);
-          const live = await getSession(redis, session.id);
-          if (live && live.userId === identity.id && text.trim()) {
-            const history = live.commentaryHistory ?? [];
-            history.push({ role: "assistant", text: text.trim() });
-            live.commentaryHistory = history.slice(-20);
-            await updateSession(redis, live);
+          await settleAiTokenReservation(
+            redis,
+            identity.id,
+            reserveResult.reserved,
+            t,
+          );
+          if (text.trim()) {
+            await appendCommentaryLine(redis, sessionId, text);
           }
         },
       });
@@ -193,15 +220,21 @@ export function createAiRoutes(deps: AppDeps) {
       const rl = await limiters.hint.limit(identity.id);
       void rl.pending;
       if (!rl.success) {
-        c.header(
-          "Retry-After",
-          String(Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))),
+        throw rateLimitedResponse(
+          "Too many hint requests",
+          Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000)),
         );
-        throw new HTTPException(429, { message: "Too many hint requests" });
       }
 
-      const used = await getDailyTokenUsage(redis, identity.id);
-      if (used >= dailyTokenBudget()) {
+      const reserveAmount = 250;
+      const reserveResult = await tryReserveAiTokens(
+        redis,
+        identity.id,
+        reserveAmount,
+        dailyTokenBudget(),
+        globalDailyTokenBudget(),
+      );
+      if (!reserveResult.ok) {
         throw new HTTPException(402, { message: "ai_quota_exceeded" });
       }
 
@@ -237,7 +270,12 @@ export function createAiRoutes(deps: AppDeps) {
           prompt: userPrompt,
           maxOutputTokens: 200,
         });
-        await incrementDailyTokenUsage(redis, identity.id, usage?.totalTokens ?? 0);
+        await settleAiTokenReservation(
+          redis,
+          identity.id,
+          reserveResult.reserved,
+          usage?.totalTokens ?? 0,
+        );
 
         if (!legalSet.has(object.position)) {
           fellBackToEngine = true;
@@ -251,6 +289,12 @@ export function createAiRoutes(deps: AppDeps) {
           confidence = object.confidence;
         }
       } catch {
+        await settleAiTokenReservation(
+          redis,
+          identity.id,
+          reserveResult.reserved,
+          0,
+        );
         fellBackToEngine = true;
         position = getBestMove(engineState);
         reasoning =
@@ -271,21 +315,6 @@ export function createAiRoutes(deps: AppDeps) {
       const identity = c.get("identity");
       const { gameId } = c.req.valid("json");
 
-      const rl = await limiters.analysis.limit(identity.id);
-      void rl.pending;
-      if (!rl.success) {
-        c.header(
-          "Retry-After",
-          String(Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))),
-        );
-        throw new HTTPException(429, { message: "Too many analysis requests" });
-      }
-
-      const used = await getDailyTokenUsage(redis, identity.id);
-      if (used >= dailyTokenBudget()) {
-        throw new HTTPException(402, { message: "ai_quota_exceeded" });
-      }
-
       const [game] = await db
         .select()
         .from(schema.games)
@@ -303,6 +332,27 @@ export function createAiRoutes(deps: AppDeps) {
         if (parsed.success) {
           return c.json(parsed.data);
         }
+      }
+
+      const rl = await limiters.analysis.limit(identity.id);
+      void rl.pending;
+      if (!rl.success) {
+        throw rateLimitedResponse(
+          "Too many analysis requests",
+          Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000)),
+        );
+      }
+
+      const reserveAmount = 900;
+      const reserveResult = await tryReserveAiTokens(
+        redis,
+        identity.id,
+        reserveAmount,
+        dailyTokenBudget(),
+        globalDailyTokenBudget(),
+      );
+      if (!reserveResult.ok) {
+        throw new HTTPException(402, { message: "ai_quota_exceeded" });
       }
 
       const model = resolveLanguageModel(deps);
@@ -330,6 +380,12 @@ export function createAiRoutes(deps: AppDeps) {
           maxOutputTokens: 800,
         }));
       } catch (err) {
+        await settleAiTokenReservation(
+          redis,
+          identity.id,
+          reserveResult.reserved,
+          0,
+        );
         console.warn("[ai/analysis] provider error", {
           requestId: c.get("requestId"),
           err,
@@ -337,7 +393,12 @@ export function createAiRoutes(deps: AppDeps) {
         throw new HTTPException(503, { message: "ai_unavailable" });
       }
 
-      await incrementDailyTokenUsage(redis, identity.id, usage?.totalTokens ?? 0);
+      await settleAiTokenReservation(
+        redis,
+        identity.id,
+        reserveResult.reserved,
+        usage?.totalTokens ?? 0,
+      );
 
       const saved = await setGameAiAnalysis(db, {
         gameId,

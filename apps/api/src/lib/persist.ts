@@ -90,6 +90,14 @@ export async function persistTerminalGame(
     newElo = Math.max(100, user.elo + appliedDelta);
   }
 
+  // NOTE: We intentionally run these as two sequential statements rather
+  // than wrapping in `db.transaction(...)`. The Neon HTTP driver does not
+  // support interactive transactions (`drizzle-orm/neon-http` throws
+  // "No transactions support in neon-http driver"), and our PGlite test
+  // harness silently *would* let it work — masking a production 500. The
+  // worst-case partial failure here is a games row inserted with the
+  // user-stats update missing, which is recoverable and not user-visible
+  // in the move/resign response (we only echo the inserted gameId).
   const [inserted] = await db
     .insert(schema.games)
     .values({

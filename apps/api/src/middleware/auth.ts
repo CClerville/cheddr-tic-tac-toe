@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
@@ -8,6 +10,8 @@ import type { Identity } from "@cheddr/api-types";
 import { verifyAnonToken } from "../lib/anonToken.js";
 import { verifyClerkSessionToken } from "../lib/clerkVerify.js";
 import type { AppBindings } from "../types.js";
+
+let clerkMissingWarned = false;
 
 export interface AuthMiddlewareOptions {
   db: Database;
@@ -86,7 +90,10 @@ async function resolveIdentity(args: {
       // Fall through to anon verify (e.g. expired or bad RS256 signature).
     }
   } else if (!clerkSecretKey) {
-    console.warn("[auth] CLERK_SECRET_KEY missing on API; skipping Clerk path");
+    if (!clerkMissingWarned) {
+      clerkMissingWarned = true;
+      console.warn("[auth] CLERK_SECRET_KEY missing on API; skipping Clerk path");
+    }
   }
 
   try {
@@ -102,7 +109,10 @@ async function resolveIdentity(args: {
     console.warn("[auth] Anon verify failed (final fallback)", {
       name: err instanceof Error ? err.name : typeof err,
       message: err instanceof Error ? err.message : String(err),
-      tokenPrefix: token.slice(0, 16),
+      tokenFingerprint: createHash("sha256")
+        .update(token)
+        .digest("hex")
+        .slice(0, 12),
     });
     return null;
   }

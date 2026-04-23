@@ -9,7 +9,7 @@ This repo uses GitHub Actions for **versioned database migrations**, **Vercel pr
 | [`ci.yml`](../.github/workflows/ci.yml) | PR + push `main` | Lint, typecheck, test (Turbo; mobile `tsc` separately). |
 | [`db-migrate.yml`](../.github/workflows/db-migrate.yml) | PR | `drizzle-kit check` on every PR; on `packages/db` changes, create Neon branch `preview/pr-<n>`, run `drizzle-kit migrate`, comment on PR. |
 | [`db-cleanup.yml`](../.github/workflows/db-cleanup.yml) | PR closed | Delete Neon branch `preview/pr-<n>` (`continue-on-error` if it never existed). |
-| [`mobile.yml`](../.github/workflows/mobile.yml) | PR (mobile paths) | EAS Update to branch `pr-<n>` + PR comment (Expo preview action). |
+| [`mobile.yml`](../.github/workflows/mobile.yml) | PR (mobile paths) | Build workspace packages without secrets; optional **EAS Update** publish job (requires `EXPO_TOKEN` + GitHub Environment). |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | Push `main` | Prod migrate (if DB changed) → Vercel `--prod` (if API/DB paths) → EAS Update `production` + EAS Build `preview` (if mobile paths). |
 
 Production API deploys from Git are **disabled for `main`** in [`apps/api/vercel.json`](../apps/api/vercel.json) so `deploy.yml` always runs migrations before `vercel deploy`.
@@ -60,3 +60,20 @@ pnpm --filter @cheddr/db db:migrate    # local migrate
 ```
 
 CI uses `pnpm --filter @cheddr/db db:migrate:ci` with `DATABASE_URL` from the workflow environment.
+
+## Mobile PR workflow (`mobile.yml`)
+
+- **`build` job** — Installs dependencies and builds `packages/*` only. Does **not** use `EXPO_TOKEN`, so fork PRs and secret-less forks still get a green compile check.
+- **`publish` job** — Runs only for PRs from the same repository (`head.repo == github.repository`). Uses GitHub Environment **`eas-ota-preview`** so you can require manual approval before any job sees `EXPO_TOKEN`. Create that environment under **Settings → Environments** (optional protection rules / reviewers). If the environment does not exist yet, GitHub creates it on first run with no reviewers.
+
+## EAS Update code signing (recommended)
+
+Unsigned OTA updates mean anyone with `EXPO_TOKEN` could ship arbitrary JS to devices. Enable [EAS Update code signing](https://docs.expo.dev/eas-update/code-signing/): generate a key pair in EAS, add the public certificate to the native project, and configure `updates.codeSigningCertificate` / `updates.codeSigningMetadata` in `app.config.ts` once certificates exist locally (paths are usually gitignored). After that, wire `eas update` in CI as documented by Expo.
+
+## API environment (production)
+
+| Variable | Notes |
+|----------|--------|
+| `ALLOWED_ORIGINS` | Comma-separated browser origins for CORS (empty = deny browser reflection; native apps are unaffected). |
+| `CLERK_AUTHORIZED_PARTIES` | Comma-separated `azp` allowlist for Clerk `verifyToken` (e.g. `cheddr://`, production web origins). |
+| `AI_GLOBAL_DAILY_TOKEN_BUDGET` | Optional aggregate AI token ceiling per UTC day across all users (default `20000000`). |

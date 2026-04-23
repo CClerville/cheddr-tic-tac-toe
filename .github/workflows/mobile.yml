@@ -1,4 +1,6 @@
 # EAS Update previews on pull requests (main-branch mobile release lives in deploy.yml).
+# Build runs without EXPO_TOKEN; publish is a separate job so PR checks still pass
+# when OTA publish is skipped or awaits secrets.
 
 name: Mobile (EAS preview)
 
@@ -20,8 +22,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  preview:
-    name: EAS Update (PR)
+  build:
+    name: Build workspace deps (no EAS token)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +38,28 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Mobile imports from @cheddr/api-types and @cheddr/game-engine,
-      # both of which ship as compiled dist/. Build them so Metro can
-      # resolve their `main` fields.
+      - name: Build workspace deps
+        run: pnpm turbo run build --filter='./packages/*'
+
+  publish:
+    name: EAS Update (PR)
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    environment: eas-ota-preview
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: Build workspace deps
         run: pnpm turbo run build --filter='./packages/*'
 

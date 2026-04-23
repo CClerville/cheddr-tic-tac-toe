@@ -86,3 +86,46 @@ export function createMemoryAiLimiters(options?: {
 export function resolveAiLimiters(redis: Redis, override?: AiLimiters): AiLimiters {
   return override ?? createUpstashAiLimiters(redis);
 }
+
+/** Rate limits for `POST /auth/anon` (IP + global abuse / cost surface). */
+export type AnonMintLimiter = {
+  limitByIp: (ip: string) => Promise<{ success: boolean; reset: number }>;
+  limitGlobal: () => Promise<{ success: boolean; reset: number }>;
+};
+
+export function createUpstashAnonMintLimiter(redis: Redis): AnonMintLimiter {
+  const byIp = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(5, "1 m"),
+    prefix: "cheddr:auth:anon:ip",
+  });
+  const global = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(2000, "1 h"),
+    prefix: "cheddr:auth:anon:global",
+  });
+  return {
+    async limitByIp(ip: string) {
+      const r = await byIp.limit(ip || "unknown");
+      void r.pending;
+      return { success: r.success, reset: r.reset };
+    },
+    async limitGlobal() {
+      const r = await global.limit("singleton");
+      void r.pending;
+      return { success: r.success, reset: r.reset };
+    },
+  };
+}
+
+/** Permissive no-op limiter for tests. */
+export function createMemoryAnonMintLimiter(): AnonMintLimiter {
+  return {
+    async limitByIp() {
+      return { success: true, reset: Date.now() + 60_000 };
+    },
+    async limitGlobal() {
+      return { success: true, reset: Date.now() + 60_000 };
+    },
+  };
+}

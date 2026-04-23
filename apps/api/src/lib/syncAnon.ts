@@ -26,11 +26,12 @@ export interface SyncAnonResult {
  *  5. Drop the anon ID from the leaderboard sorted set; add the Clerk id
  *     with the merged ELO
  *
- * The whole thing runs inside a single Drizzle transaction. On databases
- * that don't support transactions (PGlite at the time of writing),
- * `db.transaction` falls back to sequential execution; that's still safe
- * because individual statements are atomic and rollback only matters in
- * the rare case of mid-merge failure (replayable by re-calling sync).
+ * Runs as sequential statements rather than a single transaction:
+ * `drizzle-orm/neon-http` (our production driver) does NOT support
+ * interactive transactions and throws on `db.transaction(...)`. Mid-merge
+ * failure is recoverable by re-calling `syncAnonToClerk` — the
+ * `games.userId` reassignment is idempotent, the user-row update is a
+ * full overwrite, and the anon-row delete is a no-op once gone.
  */
 export async function syncAnonToClerk(
   db: Database,
@@ -72,12 +73,13 @@ export async function syncAnonToClerk(
     };
   }
 
+  const newElo = Math.max(clerkRow.elo, anonRow.elo);
+
   const mergedGamesQuery = await db
     .update(schema.games)
     .set({ userId: clerkId })
     .where(eq(schema.games.userId, anonId))
     .returning({ id: schema.games.id });
-  const mergedGames = mergedGamesQuery.length;
 
   const [aggregates] = await db
     .select({
@@ -88,8 +90,6 @@ export async function syncAnonToClerk(
     })
     .from(schema.games)
     .where(eq(schema.games.userId, clerkId));
-
-  const newElo = Math.max(clerkRow.elo, anonRow.elo);
 
   await db
     .update(schema.users)
@@ -103,6 +103,8 @@ export async function syncAnonToClerk(
     .where(eq(schema.users.id, clerkId));
 
   await db.delete(schema.users).where(eq(schema.users.id, anonId));
+
+  const mergedGames = mergedGamesQuery.length;
 
   // Best-effort leaderboard sync.
   try {
@@ -121,3 +123,4 @@ export async function syncAnonToClerk(
     newElo,
   };
 }
+

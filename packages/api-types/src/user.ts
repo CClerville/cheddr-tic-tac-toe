@@ -85,13 +85,17 @@ export type GameHistoryItem = z.infer<typeof GameHistoryItemSchema>;
 
 export const GamesListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  cursor: z.string().datetime().optional(),
+  /**
+   * Pagination cursor: last page's **game id** (UUID, recommended), legacy
+   * ISO `createdAt`, or `millis|id` / `ISO|id` composite for older clients.
+   */
+  cursor: z.string().min(1).max(220).optional(),
 });
 export type GamesListQuery = z.infer<typeof GamesListQuerySchema>;
 
 export const GamesListResponseSchema = z.object({
   items: z.array(GameHistoryItemSchema),
-  nextCursor: z.string().datetime().nullable(),
+  nextCursor: z.string().nullable(),
 });
 export type GamesListResponse = z.infer<typeof GamesListResponseSchema>;
 

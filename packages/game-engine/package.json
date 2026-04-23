@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@cheddr/config-ts": "workspace:*",
+    "fast-check": "^4.7.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
