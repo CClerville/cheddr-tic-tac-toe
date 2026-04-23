@@ -6,7 +6,7 @@ import {
 } from "../lib/ai/personalities.js";
 
 describe("buildAiSystemPrompt", () => {
-  it("always includes Cheddr identity, second person, and misère rules", () => {
+  it("always includes Cheddr identity, second person, misère rules, and spatial grounding", () => {
     const s = buildAiSystemPrompt({
       personality: "coach",
       playerName: null,
@@ -16,6 +16,9 @@ describe("buildAiSystemPrompt", () => {
     expect(s).toContain("You are");
     expect(s).toMatch(/Mis[eè]re|three in a row/i);
     expect(s).toContain("you");
+    expect(s).toContain("Spatial language grounding");
+    expect(s).toContain("top-left");
+    expect(s).toContain("bottom-right");
   });
 
   it("includes player name and sparing-use instruction when playerName is set", () => {
@@ -44,7 +47,20 @@ describe("buildAiSystemPrompt", () => {
       playerName: null,
       purpose: "commentary",
     });
-    expect(s).toMatch(/let's|tiny tip/i);
+    expect(s).toMatch(/let's|nice eye/i);
+  });
+
+  it.each([
+    "trash_talk",
+    "zen_master",
+    "sports_caster",
+  ] as const)("spatial grounding appears for %s", (personality) => {
+    const s = buildAiSystemPrompt({
+      personality,
+      playerName: null,
+      purpose: "commentary",
+    });
+    expect(s).toContain("Spatial language grounding");
   });
 
   it("trash_talk voice includes PG-13 and move-focused roast rule", () => {

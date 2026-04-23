@@ -43,4 +43,9 @@ export interface AppDeps {
    * Override the default Gateway language model (tests).
    */
   languageModelOverride?: () => LanguageModelV3;
+  /**
+   * Override the commentary-only model (tests). Falls back to
+   * `languageModelOverride` when unset.
+   */
+  commentaryLanguageModelOverride?: () => LanguageModelV3;
 }

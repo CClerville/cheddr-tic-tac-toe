@@ -1,5 +1,7 @@
 import type { Personality } from "@cheddr/api-types";
 
+import { CELL_NAMES } from "./board.js";
+
 export const BOT_NAME = "Cheddr";
 
 export type AiPromptPurpose = "commentary" | "hint" | "analysis";
@@ -14,6 +16,14 @@ export interface BuildPromptArgs {
 
 const MISERE =
   "Misère tic-tac-toe: whoever completes three in a row loses. You play O; the person you speak to plays X.";
+
+function spatialGroundingRule(): string {
+  const list = CELL_NAMES.join(", ");
+  return [
+    `Spatial language grounding: when you name a square on the board, use ONLY these exact English labels (lowercase): ${list}.`,
+    `Never invent other names for squares and never read cell index numbers aloud to the player.`,
+  ].join(" ");
+}
 
 function identityPreamble(playerName: string | null): string {
   const address = playerName
@@ -34,7 +44,7 @@ function voiceBlock(personality: Personality): string {
       return [
         `Voice: warm mentor.`,
         `Use phrases like "let's" and "nice eye".`,
-        `Give a short positive observation plus one tiny tip when it fits.`,
+        `Give a short positive observation about the latest move or the overall position; when you name their last play, use the exact label from the "Latest move" line in the user message—never a different square.`,
         `No sarcasm.`,
       ].join(" ");
     case "trash_talk":
@@ -49,13 +59,13 @@ function voiceBlock(personality: Personality): string {
       return [
         `Voice: calm zen guide.`,
         `At most 14 words in each reply.`,
-        `Use nature or space metaphors about balance; speak of "the corner", "the center", "the diagonal" — never raw cell numbers.`,
+        `You may use nature or space metaphors about balance; name any square only with the exact positional labels from the spatial rule.`,
         `No mockery. No exclamation marks.`,
       ].join(" ");
     case "sports_caster":
       return [
         `Voice: excited sports broadcaster.`,
-        `Play-by-play energy; name cells in plain English (e.g. top-left, center).`,
+        `Play-by-play energy; name cells using the exact labels from the spatial rule (e.g. top-left, center).`,
         `You may use one short ALL-CAPS beat per reply for drama.`,
         `End with a forward-looking line about the board.`,
         `Family-friendly.`,
@@ -81,6 +91,7 @@ export function buildAiSystemPrompt(args: BuildPromptArgs): string {
   return [
     identityPreamble(args.playerName),
     MISERE,
+    spatialGroundingRule(),
     voiceBlock(args.personality),
     purposeTail(args.purpose),
   ]

@@ -87,6 +87,11 @@ if [[ ! -f "$API_ENV" ]]; then
   cat <<'CHEHDR_API_ENV' >"$API_ENV"
 # Created by Vercel CLI
 AI_GATEWAY_API_KEY="vck_3ygvuRXYgUINMFqcHVQmiKd7Pcnqp9WRZhbB4Y7SFOwO5tMzzd4EObqi"
+# Optional Vercel AI Gateway models (see apps/api/.env.example and apps/api/.env.local.example):
+# AI_MODEL — hints + post-game analysis (API default openai/gpt-4o-mini when unset).
+# AI_MODEL_COMMENTARY — streaming in-game commentary (API default openai/gpt-4.1-mini when unset).
+# AI_MODEL=openai/gpt-4o-mini
+# AI_MODEL_COMMENTARY=openai/gpt-4.1-mini
 CLERK_PUBLISHABLE_KEY="pk_test_aHVtb3JvdXMtdHVya2V5LTUuY2xlcmsuYWNjb3VudHMuZGV2JA"
 CLERK_SECRET_KEY="sk_test_OHXKtBN2EzpDhLCFy0HUH5Yhf6jmryOV3TsfxvO447"
 DATABASE_URL="postgresql://neondb_owner:npg_scCrAoutY0R4@ep-lively-credit-amftir94-pooler.c-5.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
@@ -115,6 +120,7 @@ VERCEL_OIDC_TOKEN="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Im1yay00MzAyZWMxY
 CHEHDR_API_ENV
 else
   echo "Keeping existing $API_ENV"
+  echo "Tip: optional AI env in $API_ENV — AI_MODEL (hints/analysis), AI_MODEL_COMMENTARY (streaming commentary; defaults differ). See apps/api/.env.local.example."
 fi
 
 MOBILE_ENV="$REPO_ROOT/apps/mobile/.env.local"

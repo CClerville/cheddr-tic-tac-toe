@@ -20,8 +20,17 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
-import { resolveLanguageModel } from "../lib/ai/gateway.js";
-import { formatMoveHistory, serializeBoard } from "../lib/ai/board.js";
+import {
+  formatCellLegend,
+  formatMoveHistory,
+  serializeBoard,
+} from "../lib/ai/board.js";
+import { buildCommentaryUserPrompt } from "../lib/ai/commentaryPrompt.js";
+import {
+  selectPersistedCommentary,
+} from "../lib/ai/commentaryGuard.js";
+import { incrCommentaryHallucinationMetric } from "../lib/ai/commentaryMetrics.js";
+import { resolveCommentaryModel, resolveLanguageModel } from "../lib/ai/gateway.js";
 import { buildAiSystemPrompt } from "../lib/ai/personalities.js";
 import { getPlayerName } from "../lib/users.js";
 import { resolveAiLimiters } from "../lib/ai/rateLimit.js";
@@ -154,24 +163,18 @@ export function createAiRoutes(deps: AppDeps) {
 
       const personality = session.personality ?? "coach";
       const playerName = await getPlayerName(db, identity.id);
-      const model = resolveLanguageModel(deps);
+      const model = resolveCommentaryModel(deps);
       const system = buildAiSystemPrompt({
         personality,
         playerName,
         purpose: "commentary",
       });
-      const userPrompt = [
-        `Board (cells 0-8, rows top-to-bottom):`,
-        serializeBoard(session.board),
-        ``,
-        `Move log:`,
-        formatMoveHistory(session.moveHistory),
-        ``,
-        `Game result JSON: ${JSON.stringify(session.result)}`,
-        `Trigger: ${body.trigger}.`,
-        ``,
-        `Comment on this position from your perspective as Cheddr. Speak to the player directly.`,
-      ].join("\n");
+      const userPrompt = buildCommentaryUserPrompt({
+        board: session.board,
+        moveHistory: session.moveHistory,
+        result: session.result,
+        trigger: body.trigger,
+      });
 
       const rid = c.get("requestId");
       const sessionId = session.id;
@@ -194,8 +197,22 @@ export function createAiRoutes(deps: AppDeps) {
             reserveResult.reserved,
             t,
           );
-          if (text.trim()) {
-            await appendCommentaryLine(redis, sessionId, text);
+          const { text: toPersist, usedFallback, reason } =
+            selectPersistedCommentary(
+              text,
+              session.board,
+              session.moveHistory,
+            );
+          if (toPersist) {
+            if (usedFallback) {
+              await incrCommentaryHallucinationMetric(redis);
+              console.info("[ai/commentary] validation_fallback", {
+                requestId: rid,
+                sessionId,
+                reason,
+              });
+            }
+            await appendCommentaryLine(redis, sessionId, toPersist);
           }
         },
       });
@@ -263,6 +280,8 @@ export function createAiRoutes(deps: AppDeps) {
       ].join(" ");
 
       const userPrompt = [
+        formatCellLegend(),
+        ``,
         `Board:`,
         serializeBoard(session.board),
         `Move history:`,
@@ -383,6 +402,8 @@ export function createAiRoutes(deps: AppDeps) {
       ].join(" ");
 
       const userPrompt = [
+        formatCellLegend(),
+        ``,
         `Difficulty: ${game.difficulty}`,
         `Outcome for ${playerLabel} (win / loss / draw from their perspective): ${game.result}`,
         `Move sequence (0-8 cells): ${JSON.stringify(game.moveHistory)}`,
