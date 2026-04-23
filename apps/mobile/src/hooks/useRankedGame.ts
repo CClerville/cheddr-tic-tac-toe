@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type {
   GameStateDTO,
@@ -61,6 +62,7 @@ function derivePhase(state: GameState): GamePhase {
  */
 export function useRankedGame(options: UseRankedGameOptions) {
   const { difficulty, ranked = true } = options;
+  const queryClient = useQueryClient();
   const [state, setState] = useState<RankedState>({
     sessionId: null,
     gameState: { ...initialEngineState, difficulty },
@@ -70,6 +72,15 @@ export function useRankedGame(options: UseRankedGameOptions) {
     outcome: null,
     eloDelta: null,
   });
+
+  // Server profile (ELO + ranked W/L/D) is the canonical source for ranked
+  // counts. Whenever a ranked game terminates we invalidate the cached
+  // profile so any subscribed screen — Home, Stats, Profile — re-fetches
+  // and shows the up-to-date totals on its next render.
+  const invalidateProfile = useCallback(() => {
+    if (!ranked) return;
+    void queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+  }, [queryClient, ranked]);
 
   const start = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -130,6 +141,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           if (res.outcome === "win") haptics.win();
           else if (res.outcome === "loss") haptics.loss();
           else if (res.outcome === "draw") haptics.draw();
+          invalidateProfile();
         } else {
           haptics.pieceLanded();
         }
@@ -143,6 +155,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           eloDelta: res.eloDelta,
         });
       } catch (err) {
+        haptics.illegalTap();
         setState((s) => ({
           ...s,
           loading: false,
@@ -151,7 +164,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         }));
       }
     },
-    [state.sessionId, state.phase, difficulty],
+    [state.sessionId, state.phase, difficulty, invalidateProfile],
   );
 
   const resign = useCallback(async () => {
@@ -173,6 +186,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         outcome: res.outcome,
         eloDelta: res.eloDelta,
       });
+      invalidateProfile();
     } catch (err) {
       setState((s) => ({
         ...s,
@@ -180,7 +194,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         error: err instanceof ApiError ? err.message : "Resign failed",
       }));
     }
-  }, [state.sessionId]);
+  }, [state.sessionId, invalidateProfile]);
 
   return {
     ...state,

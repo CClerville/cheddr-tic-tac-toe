@@ -21,6 +21,8 @@ async function applySchema(client: PGlite): Promise<void> {
       id text PRIMARY KEY,
       kind text NOT NULL,
       username text UNIQUE,
+      display_name text,
+      avatar_color text,
       elo integer NOT NULL DEFAULT 1000,
       games_played integer NOT NULL DEFAULT 0,
       wins integer NOT NULL DEFAULT 0,

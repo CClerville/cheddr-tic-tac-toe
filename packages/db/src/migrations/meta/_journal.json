@@ -8,6 +8,13 @@
       "when": 1776879320709,
       "tag": "0000_tiny_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776899190588,
+      "tag": "0001_fast_exiles",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
@@ -11,6 +11,7 @@ interface CellTouchProps {
   onPress: (position: Position) => void;
   disabled: boolean;
   rect: CellRect;
+  onPressStateChange?: (position: Position | null) => void;
 }
 
 const ROW_NAMES = ["top", "middle", "bottom"] as const;
@@ -30,10 +31,10 @@ export function CellTouch({
   onPress,
   disabled,
   rect,
+  onPressStateChange,
 }: CellTouchProps) {
   const occupied = value !== null;
   const interactive = !occupied && !disabled;
-  const [pressed, setPressed] = useState(false);
 
   const tap = useMemo(
     () =>
@@ -42,12 +43,16 @@ export function CellTouch({
         .maxDuration(TAP_MAX_DURATION_MS)
         .enabled(interactive)
         .runOnJS(true)
-        .onBegin(() => setPressed(true))
-        .onFinalize(() => setPressed(false))
+        .onBegin(() => {
+          onPressStateChange?.(position);
+        })
+        .onFinalize(() => {
+          onPressStateChange?.(null);
+        })
         .onEnd((_event, success) => {
           if (success) onPress(position);
         }),
-    [interactive, onPress, position],
+    [interactive, onPress, onPressStateChange, position],
   );
 
   return (
@@ -66,7 +71,6 @@ export function CellTouch({
           top: rect.y,
           width: rect.width,
           height: rect.height,
-          opacity: pressed && interactive ? 0.5 : 1,
         }}
       />
     </GestureDetector>

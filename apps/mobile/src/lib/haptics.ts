@@ -20,6 +20,13 @@ export const haptics = {
     if (!isSupported) return;
     safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
   },
+  /** Illegal move / validation failure */
+  illegalTap(): void {
+    if (!isSupported) return;
+    safe(
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+    );
+  },
   pieceLanded(): void {
     if (!isSupported) return;
     safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
@@ -30,9 +37,7 @@ export const haptics = {
   },
   win(): void {
     if (!isSupported) return;
-    safe(
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
-    );
+    safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
   },
   loss(): void {
     if (!isSupported) return;
