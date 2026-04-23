@@ -3,6 +3,49 @@ import type { Redis } from "@upstash/redis";
 /** Global leaderboard sorted set key. */
 export const LEADERBOARD_KEY = "leaderboard:global";
 
+/** A single member/score pair returned by Redis sorted-set range queries. */
+export interface LeaderboardScorePair {
+  readonly member: string;
+  readonly score: number;
+}
+
+/**
+ * Parse Redis's flat `[member, score, member, score, ...]` `ZRANGE WITHSCORES`
+ * response into typed pairs. Throws on malformed input (odd length, non-coercible
+ * score) so callers don't silently surface NaN ranks to clients.
+ *
+ * Upstash's TS types for `zrange(..., { withScores: true })` resolve to
+ * `(string | number)[]`; this helper is the single place we do that decode.
+ */
+export function parseZrangeWithScores(raw: unknown): LeaderboardScorePair[] {
+  if (!Array.isArray(raw)) {
+    throw new TypeError("Expected ZRANGE WITHSCORES to return an array");
+  }
+  if (raw.length % 2 !== 0) {
+    throw new TypeError(
+      `ZRANGE WITHSCORES returned odd-length array (${raw.length})`,
+    );
+  }
+  const out: LeaderboardScorePair[] = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    const member = raw[i];
+    const score = raw[i + 1];
+    if (typeof member !== "string" && typeof member !== "number") {
+      throw new TypeError(
+        `ZRANGE WITHSCORES returned non-scalar member at index ${i}`,
+      );
+    }
+    const scoreNum = typeof score === "number" ? score : Number(score);
+    if (!Number.isFinite(scoreNum)) {
+      throw new TypeError(
+        `ZRANGE WITHSCORES returned non-finite score at index ${i + 1}: ${String(score)}`,
+      );
+    }
+    out.push({ member: String(member), score: scoreNum });
+  }
+  return out;
+}
+
 /** Per-user hourly ELO budget tracker key. */
 const eloBudgetKey = (userId: string) => `elo:budget:${userId}`;
 

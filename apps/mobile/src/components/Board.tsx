@@ -9,7 +9,11 @@ import {
   GAME_SCREEN_LAYOUT_RESERVE_Y_PT,
 } from "@/constants/gameScreenLayout";
 import { useTheme } from "@/theme/ThemeProvider";
-import type { Position } from "@cheddr/game-engine";
+import type {
+  Board as BoardType,
+  GameResult,
+  Position,
+} from "@cheddr/game-engine";
 
 import { BoardCanvas } from "./board/BoardCanvas";
 import {
@@ -19,7 +23,6 @@ import {
   type BoardGeometry,
 } from "./board/boardGeometry";
 import { CellTouch } from "./CellTouch";
-import type { Board as BoardType, GameResult } from "@cheddr/game-engine";
 
 interface BoardProps {
   board: BoardType;

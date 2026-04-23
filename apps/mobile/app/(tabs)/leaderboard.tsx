@@ -1,5 +1,5 @@
 import { useScrollToTop } from "@react-navigation/native";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   InteractionManager,
@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/clerk-expo";
 
-import { PressableScale } from "@/components/PressableScale";
+import { ApiErrorBanner } from "@/components/ui/ApiErrorBanner";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import {
@@ -30,6 +30,27 @@ import {
   type LeaderboardMeResponse,
   type LeaderboardTopResponse,
 } from "@cheddr/api-types";
+
+// Row layout is locked to a fixed height so `getItemLayout` can short-circuit
+// FlatList's measurement pass (cheaper scrolling, no jitter as rows mount).
+// Keep this in sync with `Row` styles + ItemSeparator height (1px).
+const ROW_HEIGHT = 44;
+const SEPARATOR_HEIGHT = 1;
+const ITEM_HEIGHT = ROW_HEIGHT + SEPARATOR_HEIGHT;
+
+const getItemLayout = (
+  _data: ArrayLike<LeaderboardEntry> | null | undefined,
+  index: number,
+) => ({
+  length: ITEM_HEIGHT,
+  offset: ITEM_HEIGHT * index,
+  index,
+});
+
+const renderRow = ({ item }: { item: LeaderboardEntry }) => <Row entry={item} />;
+const ItemSeparator = () => (
+  <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-60" />
+);
 
 export default function LeaderboardScreen() {
   const listRef = useRef<FlatList<LeaderboardEntry>>(null);
@@ -120,13 +141,20 @@ export default function LeaderboardScreen() {
                 paddingVertical: 8,
                 paddingBottom: bottomPad,
               }}
-              renderItem={({ item }) => <Row entry={item} />}
-              ItemSeparatorComponent={() => (
-                <View className="h-px bg-glassBorder dark:bg-glassBorder-dark opacity-60" />
-              )}
+              renderItem={renderRow}
+              ItemSeparatorComponent={ItemSeparator}
+              getItemLayout={getItemLayout}
+              removeClippedSubviews
+              initialNumToRender={20}
+              windowSize={11}
               ListEmptyComponent={
                 showQuietRetry ? (
-                  <RetryPill onRetry={() => void top.refetch()} />
+                  <View className="pt-12">
+                    <ApiErrorBanner
+                      error={top.error}
+                      onRetry={() => void top.refetch()}
+                    />
+                  </View>
                 ) : (
                   <Text className="text-secondary dark:text-secondary-dark text-center mt-12">
                     No ranked players yet. Be the first!
@@ -136,7 +164,10 @@ export default function LeaderboardScreen() {
               ListFooterComponent={
                 showQuietRetry && (top.data?.entries?.length ?? 0) > 0 ? (
                   <View className="pt-4">
-                    <RetryPill onRetry={() => void top.refetch()} />
+                    <ApiErrorBanner
+                      error={top.error}
+                      onRetry={() => void top.refetch()}
+                    />
                   </View>
                 ) : null
               }
@@ -199,38 +230,45 @@ function LeaderboardListSkeleton({ bottomPad }: { bottomPad: number }) {
   );
 }
 
-function RetryPill({ onRetry }: { onRetry: () => void }) {
+// Memoized so list re-renders (e.g. error banner mounting) don't force every
+// row to re-render — entries are referentially stable across query refreshes
+// when the data is unchanged.
+const Row = memo(function Row({ entry }: { entry: LeaderboardEntry }) {
+  const name = entry.username ?? "Unnamed";
+  // Single accessible label so VoiceOver reads "Rank 3, Alice, 1450 ELO"
+  // instead of three disconnected texts. The inner <Text> nodes still render
+  // visually but are hidden from a11y to avoid double-reads.
+  const a11yLabel = `Rank ${entry.rank}, ${name}, ${entry.elo} ELO`;
   return (
-    <View className="items-center mt-12">
-      <Text className="text-secondary dark:text-secondary-dark mb-3">
-        Couldn't refresh ranks.
-      </Text>
-      <PressableScale
-        onPress={onRetry}
-        accessibilityRole="button"
-        accessibilityLabel="Retry loading the leaderboard"
-        className="bg-glass dark:bg-glass-dark border border-glassBorder dark:border-glassBorder-dark px-4 py-2 rounded-full"
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={a11yLabel}
+      className="flex-row items-center"
+      style={{ height: ROW_HEIGHT }}
+    >
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="w-10 text-secondary dark:text-secondary-dark font-mono"
       >
-        <Text className="text-primary dark:text-primary-dark text-sm font-medium">
-          Try again
-        </Text>
-      </PressableScale>
-    </View>
-  );
-}
-
-function Row({ entry }: { entry: LeaderboardEntry }) {
-  return (
-    <View className="flex-row items-center py-3">
-      <Text className="w-10 text-secondary dark:text-secondary-dark font-mono">
         #{entry.rank}
       </Text>
-      <Text className="flex-1 text-primary dark:text-primary-dark">
-        {entry.username ?? "Unnamed"}
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="flex-1 text-primary dark:text-primary-dark"
+        numberOfLines={1}
+      >
+        {name}
       </Text>
-      <Text className="text-primary dark:text-primary-dark font-semibold">
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="text-primary dark:text-primary-dark font-semibold"
+      >
         {entry.elo}
       </Text>
     </View>
   );
-}
+});

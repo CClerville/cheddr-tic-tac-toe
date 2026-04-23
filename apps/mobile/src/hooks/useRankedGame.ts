@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
   MoveResponseSchema,
   ResignResponseSchema,
   StartGameResponseSchema,
-  type GameStateDTO,
   type Personality,
 } from "@cheddr/api-types";
 import {
+  derivePhase,
+  dtoToEngine,
   makeMove,
   type Difficulty,
+  type GamePhase,
   type GameState,
   type Position,
 } from "@cheddr/game-engine";
@@ -19,7 +21,6 @@ import { ApiError, apiGet, apiPost } from "@/lib/api";
 import { haptics } from "@/lib/haptics";
 import { ensureAnonIdentity } from "@/lib/auth";
 import { Sentry } from "@/lib/sentry";
-import type { GamePhase } from "./useGame";
 
 export interface UseRankedGameOptions {
   difficulty: Difficulty;
@@ -32,11 +33,27 @@ interface RankedState {
   gameState: GameState;
   phase: GamePhase;
   loading: boolean;
-  error: string | null;
+  /**
+   * Last failure surfaced for this session. Preserved as an `Error` (often
+   * an `ApiError` carrying status + requestId) so the UI can render details
+   * like the request id without us having to hand-marshal every field.
+   */
+  error: Error | null;
   outcome: "win" | "loss" | "draw" | null;
   eloDelta: number | null;
   /** Set when the server reports a persisted game id (terminal move or resign). */
   gameId: string | null;
+}
+
+/**
+ * Coerce an unknown thrown value into an `Error`. Strings/objects sometimes
+ * leak through fetch wrappers; we keep `ApiError` instances intact so the
+ * banner can pull `status`/`requestId` off them.
+ */
+function toError(err: unknown, fallbackMessage: string): Error {
+  if (err instanceof Error) return err;
+  if (typeof err === "string" && err.trim()) return new Error(err);
+  return new Error(fallbackMessage);
 }
 
 const initialEngineState: GameState = {
@@ -46,21 +63,6 @@ const initialEngineState: GameState = {
   result: { status: "in_progress" },
   difficulty: "beginner",
 };
-
-function dtoToEngine(dto: GameStateDTO): GameState {
-  return {
-    board: [...dto.board] as unknown as GameState["board"],
-    currentPlayer: dto.currentPlayer,
-    moveHistory: [...dto.moveHistory],
-    result: dto.result,
-    difficulty: dto.difficulty,
-  };
-}
-
-function derivePhase(state: GameState): GamePhase {
-  if (state.result.status !== "in_progress") return "game_over";
-  return state.currentPlayer === "X" ? "player_turn" : "ai_thinking";
-}
 
 function cloneRankedState(s: RankedState): RankedState {
   return {
@@ -95,6 +97,13 @@ export function useRankedGame(options: UseRankedGameOptions) {
     eloDelta: null,
     gameId: null,
   });
+
+  // Mirror state into a ref so callbacks below can read the latest values
+  // without taking `state` as a dependency. This keeps `playMove` stable
+  // across state transitions (Board no longer needs to re-bind onCellPress
+  // every render) while still surfacing fresh data inside the closure.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Server profile (ELO + ranked W/L/D) is the canonical source for ranked
   // counts. The /user/stats endpoint splits ranked/casual by difficulty and
@@ -133,7 +142,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
       setState((s) => ({
         ...s,
         loading: false,
-        error: err instanceof ApiError ? err.message : "Failed to start game",
+        error: toError(err, "Failed to start game"),
       }));
     }
   }, [difficulty, ranked, personality]);
@@ -144,15 +153,16 @@ export function useRankedGame(options: UseRankedGameOptions) {
 
   const playMove = useCallback(
     async (position: Position) => {
-      if (!state.sessionId) return;
-      if (state.phase !== "player_turn") return;
+      const current = stateRef.current;
+      if (!current.sessionId) return;
+      if (current.phase !== "player_turn") return;
 
-      const sessionIdAtStart = state.sessionId;
-      const snapshot = cloneRankedState(state);
+      const sessionIdAtStart = current.sessionId;
+      const snapshot = cloneRankedState(current);
 
       let optimistic: GameState;
       try {
-        optimistic = makeMove(state.gameState, position);
+        optimistic = makeMove(current.gameState, position);
       } catch {
         haptics.illegalTap();
         return;
@@ -225,7 +235,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           haptics.illegalTap();
           setState((s) => {
             if (s.sessionId !== sessionIdAtStart) return s;
-            return { ...snapshot, error: err.message };
+            return { ...snapshot, error: err };
           });
           return;
         }
@@ -243,10 +253,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
               gameState: engine,
               phase: derivePhase(engine),
               loading: false,
-              error:
-                err instanceof ApiError
-                  ? err.message
-                  : "Move failed — synced with server",
+              error: toError(err, "Move failed — synced with server"),
               outcome: null,
               eloDelta: null,
               gameId: null,
@@ -257,26 +264,28 @@ export function useRankedGame(options: UseRankedGameOptions) {
             if (s.sessionId !== sessionIdAtStart) return s;
             return {
               ...snapshot,
-              error:
-                err instanceof ApiError ? err.message : "Move failed",
+              error: toError(err, "Move failed"),
             };
           });
         }
       }
     },
-    [state, difficulty, invalidateAfterTerminal],
+    [difficulty, invalidateAfterTerminal],
   );
 
   const resign = useCallback(async () => {
-    if (!state.sessionId) return;
+    const sessionId = stateRef.current.sessionId;
+    if (!sessionId) return;
     setState((s) => ({ ...s, loading: true }));
     try {
-      const res = await apiPost("/game/resign", {
-        sessionId: state.sessionId,
-      }, ResignResponseSchema);
+      const res = await apiPost(
+        "/game/resign",
+        { sessionId },
+        ResignResponseSchema,
+      );
       const engine = dtoToEngine(res.state);
       setState({
-        sessionId: state.sessionId,
+        sessionId,
         gameState: engine,
         phase: "game_over",
         loading: false,
@@ -289,19 +298,16 @@ export function useRankedGame(options: UseRankedGameOptions) {
     } catch (err) {
       try {
         const dto = await apiGet(
-          `/game/${state.sessionId}/state`,
+          `/game/${sessionId}/state`,
           StartGameResponseSchema,
         );
         const engine = dtoToEngine(dto);
         setState({
-          sessionId: state.sessionId,
+          sessionId,
           gameState: engine,
           phase: derivePhase(engine),
           loading: false,
-          error:
-            err instanceof ApiError
-              ? err.message
-              : "Resign failed — synced with server",
+          error: toError(err, "Resign failed — synced with server"),
           outcome: null,
           eloDelta: null,
           gameId: null,
@@ -310,11 +316,11 @@ export function useRankedGame(options: UseRankedGameOptions) {
         setState((s) => ({
           ...s,
           loading: false,
-          error: err instanceof ApiError ? err.message : "Resign failed",
+          error: toError(err, "Resign failed"),
         }));
       }
     }
-  }, [state.sessionId, invalidateAfterTerminal]);
+  }, [invalidateAfterTerminal]);
 
   return {
     ...state,

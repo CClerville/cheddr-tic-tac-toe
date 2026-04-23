@@ -21,7 +21,7 @@ export function ScreenContainer({
     <GradientBackground style={styles.fill}>
       <SafeAreaView
         style={[styles.fill, style]}
-        edges={variant === "modal" ? modalEdges : undefined}
+        {...(variant === "modal" ? { edges: modalEdges } : {})}
       >
         {children}
       </SafeAreaView>

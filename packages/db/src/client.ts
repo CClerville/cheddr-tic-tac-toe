@@ -1,16 +1,36 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
+import type {
+  ExtractTablesWithRelations,
+  RelationalSchemaConfig,
+  TablesRelationalConfig,
+} from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
 
+type SchemaModule = typeof schema;
+
 /**
- * Drizzle's per-driver `Database` types all extend the same `PgDatabase`
- * base. We deliberately widen here so the same `Database` interface is
- * satisfied by both the Neon HTTP driver (production) and PGlite (tests).
- * The structural query API is identical at the call site.
+ * Drizzle's per-driver client types all extend the same `PgDatabase` base.
+ * We pin the third generic to the `ExtractTablesWithRelations<schema>` shape
+ * so the dotted query API (`db.query.users.findFirst`, etc.) stays typed,
+ * and structurally satisfy both the Neon HTTP driver (production) and the
+ * PGlite driver (tests) without ever needing `any` at the type level.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Database = PgDatabase<PgQueryResultHKT, typeof schema, any>;
+export type Database = PgDatabase<
+  PgQueryResultHKT,
+  SchemaModule,
+  ExtractTablesWithRelations<SchemaModule>
+>;
+
+/**
+ * Drizzle's `RelationalSchemaConfig` shape — exposed so test harnesses can
+ * narrow other drivers' clients to our shared `Database` alias without a
+ * raw `any` cast.
+ */
+export type DbSchemaConfig = RelationalSchemaConfig<
+  TablesRelationalConfig & ExtractTablesWithRelations<SchemaModule>
+>;
 
 /**
  * Create a Drizzle client backed by Neon's HTTP driver. The HTTP driver is
@@ -20,7 +40,7 @@ export type Database = PgDatabase<PgQueryResultHKT, typeof schema, any>;
  */
 export function createDb(databaseUrl: string): Database {
   const sql: NeonQueryFunction<false, false> = neon(databaseUrl);
-  return drizzleNeon(sql, { schema }) as unknown as Database;
+  return drizzleNeon(sql, { schema });
 }
 
 export { schema };

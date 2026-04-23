@@ -46,13 +46,17 @@ export function GlassTabBar({
   const renderTab = (name: TabName) => {
     const routeIndex = state.routes.findIndex((r) => r.name === name);
     if (routeIndex < 0) return null;
+    const route = state.routes[routeIndex];
+    if (!route) return null;
     const focused = state.index === routeIndex;
-    const { options } = descriptors[state.routes[routeIndex].key];
+    const descriptor = descriptors[route.key];
+    if (!descriptor) return null;
+    const { options } = descriptor;
 
     const onPress = () => {
       const event = navigation.emit({
         type: "tabPress",
-        target: state.routes[routeIndex].key,
+        target: route.key,
         canPreventDefault: true,
       });
       if (!focused && !event.defaultPrevented) {
@@ -66,7 +70,7 @@ export function GlassTabBar({
     const onLongPress = () => {
       navigation.emit({
         type: "tabLongPress",
-        target: state.routes[routeIndex].key,
+        target: route.key,
       });
     };
 
