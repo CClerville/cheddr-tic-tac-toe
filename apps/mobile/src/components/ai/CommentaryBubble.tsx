@@ -1,4 +1,4 @@
-import type { CommentaryRequest } from "@cheddr/api-types";
+import type { CommentaryRequest, Personality } from "@cheddr/api-types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
@@ -6,11 +6,20 @@ import { GlassPanel } from "@/components/ui/GlassPanel";
 import { apiPostStreaming } from "@/lib/api";
 import { useTheme } from "@/theme/ThemeProvider";
 
+const PERSONALITY_LABEL: Record<Personality, string> = {
+  coach: "Coach",
+  trash_talk: "Trash talk",
+  zen_master: "Zen",
+  sports_caster: "Sports caster",
+};
+
 interface CommentaryBubbleProps {
   sessionId: string | null;
   /** Fingerprint of the board (e.g. joined move indices) — bumps trigger move commentary. */
   moveFingerprint: string;
   gameOver: boolean;
+  /** Active Cheddr mood (ranked games). Omit for local-only screens. */
+  personality?: Personality;
 }
 
 /**
@@ -21,6 +30,7 @@ export function CommentaryBubble({
   sessionId,
   moveFingerprint,
   gameOver,
+  personality,
 }: CommentaryBubbleProps) {
   const { palette } = useTheme();
   const [text, setText] = useState("");
@@ -115,6 +125,11 @@ export function CommentaryBubble({
 
   if (!sessionId || !visible) return null;
 
+  const headerLabel =
+    personality != null
+      ? `Cheddr · ${PERSONALITY_LABEL[personality]}`
+      : "Cheddr";
+
   return (
     <View
       className="absolute left-3 right-3 bottom-3 z-50"
@@ -124,7 +139,7 @@ export function CommentaryBubble({
         <View className="px-3 py-2">
           <View className="flex-row justify-between items-start gap-2">
             <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark">
-              Commentator
+              {headerLabel}
             </Text>
             <Pressable
               onPress={() => {
@@ -132,7 +147,7 @@ export function CommentaryBubble({
                 setVisible(false);
               }}
               accessibilityRole="button"
-              accessibilityLabel="Dismiss commentary"
+              accessibilityLabel="Dismiss Cheddr"
               hitSlop={10}
             >
               <Text style={{ color: palette.muted }} className="text-sm">
