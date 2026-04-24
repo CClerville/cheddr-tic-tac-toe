@@ -80,6 +80,7 @@ function LocalGameScreen({
     ranked: false,
     gameId: null,
     personality,
+    localOnly: true,
   });
 
   return (
@@ -135,6 +136,7 @@ function ServerGameScreen({
     ranked: isRanked,
     gameId: ranked.gameId,
     personality,
+    localOnly: false,
   });
 
   const canHint =
@@ -286,13 +288,31 @@ function useGameOverNavigator(args: {
   ranked: boolean;
   gameId: string | null;
   personality: Personality;
+  /** Pure local engine — no server row; navigate as soon as the game ends. */
+  localOnly?: boolean;
 }) {
-  const { phase, result, difficulty, eloDelta, ranked, gameId, personality } =
-    args;
+  const {
+    phase,
+    result,
+    difficulty,
+    eloDelta,
+    ranked,
+    gameId,
+    personality,
+    localOnly = false,
+  } = args;
   const navigatedRef = useRef(false);
 
   useEffect(() => {
     if (phase !== "game_over") {
+      navigatedRef.current = false;
+      return;
+    }
+    // Server hook applies optimistic terminal state before `/game/move` returns
+    // `gameId`. If we schedule here, navigatedRef flips true; when `gameId`
+    // arrives this effect re-runs, cleanup clears the timer, and the early
+    // return blocks forever — user stays on the board (no game-over modal).
+    if (!localOnly && !gameId) {
       navigatedRef.current = false;
       return;
     }
@@ -313,5 +333,5 @@ function useGameOverNavigator(args: {
       });
     }, 700);
     return () => clearTimeout(timer);
-  }, [phase, result, difficulty, eloDelta, ranked, gameId, personality]);
+  }, [phase, result, difficulty, eloDelta, ranked, gameId, personality, localOnly]);
 }
