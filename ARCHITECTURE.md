@@ -57,12 +57,13 @@ sequenceDiagram
   API->>API: write_session_Redis
   alt terminal_result
     API->>DB: atomic_CTE_insert_game_and_user_stats
+    API->>API: save_AI_snapshot_then_delete_live_session
   end
   Lock-->>API: release_lock
   API-->>UI: JSON_session_or_409
 ```
 
-- **Lock**: Per-session Redis lock avoids concurrent moves corrupting session JSON or double-persisting. See `withSessionMoveLock` in [`apps/api/src/lib/session.ts`](apps/api/src/lib/session.ts).
+- **Lock**: Per-session Redis lock avoids concurrent moves corrupting session JSON or double-persisting. See `withSessionMoveLock` in [`apps/api/src/lib/session.ts`](apps/api/src/lib/session.ts). Terminal commentary and move handlers must respect this ordering: the client only requests `trigger: "terminal"` **after** the move response so the post-game snapshot exists.
 - **Engine**: All legality and AI moves run in `@cheddr/game-engine` with no DB/HTTP imports — easy to test and reuse.
 
 ## Anonymous → Clerk
@@ -78,7 +79,8 @@ Mounted at `/ai` ([`apps/api/src/routes/ai.ts`](apps/api/src/routes/ai.ts)): **`
 - **Gateway**: Models come from **Vercel AI Gateway** ([`apps/api/src/lib/ai/gateway.ts`](apps/api/src/lib/ai/gateway.ts)) — defaults `openai/gpt-4o-mini` for hint/analysis and `openai/gpt-4.1-mini` for commentary (`AI_MODEL` / `AI_MODEL_COMMENTARY`).
 - **Budgets**: Per-user and global daily token caps (`AI_DAILY_TOKEN_BUDGET`, `AI_GLOBAL_DAILY_TOKEN_BUDGET`) use reservation + settle in Redis via Lua ([`apps/api/src/lib/ai/usage.ts`](apps/api/src/lib/ai/usage.ts), [`apps/api/src/lib/ai/luaScripts.ts`](apps/api/src/lib/ai/luaScripts.ts)).
 - **Rate limits**: Per-route sliding windows in [`apps/api/src/lib/ai/rateLimit.ts`](apps/api/src/lib/ai/rateLimit.ts).
-- **Commentary safety**: [`apps/api/src/lib/ai/commentaryGuard.ts`](apps/api/src/lib/ai/commentaryGuard.ts) validates model output against the board before lines are persisted on the session.
+- **Commentary safety**: [`apps/api/src/lib/ai/commentaryGuard.ts`](apps/api/src/lib/ai/commentaryGuard.ts) validates model output against the board before lines are persisted on the session. For **`trigger: "terminal"`**, it also rejects mid-game phrasing (e.g. “I placed O…”) and falls back to deterministic post-game copy so a bad model line cannot contradict the outcome banner.
+- **Commentary vs ranked moves**: `POST /ai/commentary` accepts `trigger: "move"` or `"terminal"`. After a terminal move, the API writes a short-lived Redis snapshot (`session:ai:{id}` via `saveCompletedSessionForAi`) and deletes the live session key so commentary reads terminal `result` through [`loadSessionOrSnapshotForAi`](apps/api/src/lib/session.ts). The mobile hook bumps **`terminalAckVersion`** only after a successful terminal **`/game/move`** or **`/game/resign`**; [`CommentaryBubble`](apps/mobile/src/components/ai/CommentaryBubble.tsx) uses that (not optimistic `game_over`) to fire terminal streams, avoiding a race where commentary would still see `in_progress`. If a client still hits that window, the service polls [`waitForTerminalSession`](apps/api/src/lib/session.ts) and may respond with **425** and wire code **`terminal_not_ready`** ([`packages/api-types/src/errors.ts`](packages/api-types/src/errors.ts)); the client retries once.
 
 Mobile consumes these via TanStack Query hooks and UI under [`apps/mobile/src/components/ai/`](apps/mobile/src/components/ai/). Before changing commentary prompts or `AI_MODEL_COMMENTARY`, run **`pnpm --filter @cheddr/api eval:commentary`** (exits non-zero if pass rate falls below 90%); env and fixtures: [`docs/ci.md`](docs/ci.md).
 

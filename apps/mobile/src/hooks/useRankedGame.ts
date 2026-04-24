@@ -30,6 +30,8 @@ export interface UseRankedGameOptions {
 
 interface RankedState {
   sessionId: string | null;
+  /** Bumps only after server confirms a terminal game (move/resign); drives post-game commentary. */
+  terminalAckVersion: number;
   gameState: GameState;
   phase: GamePhase;
   loading: boolean;
@@ -67,6 +69,7 @@ const initialEngineState: GameState = {
 function cloneRankedState(s: RankedState): RankedState {
   return {
     ...s,
+    terminalAckVersion: s.terminalAckVersion,
     gameState: {
       ...s.gameState,
       board: [...s.gameState.board] as GameState["board"],
@@ -89,6 +92,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<RankedState>({
     sessionId: null,
+    terminalAckVersion: 0,
     gameState: { ...initialEngineState, difficulty },
     phase: "hydrating",
     loading: true,
@@ -130,6 +134,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
       const engine = dtoToEngine(res);
       setState({
         sessionId: res.sessionId,
+        terminalAckVersion: 0,
         gameState: engine,
         phase: derivePhase(engine),
         loading: false,
@@ -217,6 +222,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
           if (s.sessionId !== sessionIdAtStart) return s;
           return {
             sessionId: sessionIdAtStart,
+            terminalAckVersion: res.terminal
+              ? s.terminalAckVersion + 1
+              : s.terminalAckVersion,
             gameState: engine,
             phase: derivePhase(engine),
             loading: false,
@@ -250,6 +258,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
             if (s.sessionId !== sessionIdAtStart) return s;
             return {
               sessionId: sessionIdAtStart,
+              terminalAckVersion: s.terminalAckVersion,
               gameState: engine,
               phase: derivePhase(engine),
               loading: false,
@@ -284,8 +293,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
         ResignResponseSchema,
       );
       const engine = dtoToEngine(res.state);
-      setState({
+      setState((s) => ({
         sessionId,
+        terminalAckVersion: s.terminalAckVersion + 1,
         gameState: engine,
         phase: "game_over",
         loading: false,
@@ -293,7 +303,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
         outcome: res.outcome,
         eloDelta: res.eloDelta,
         gameId: res.gameId,
-      });
+      }));
       invalidateAfterTerminal();
     } catch (err) {
       try {
@@ -302,8 +312,9 @@ export function useRankedGame(options: UseRankedGameOptions) {
           StartGameResponseSchema,
         );
         const engine = dtoToEngine(dto);
-        setState({
+        setState((s) => ({
           sessionId,
+          terminalAckVersion: s.terminalAckVersion,
           gameState: engine,
           phase: derivePhase(engine),
           loading: false,
@@ -311,7 +322,7 @@ export function useRankedGame(options: UseRankedGameOptions) {
           outcome: null,
           eloDelta: null,
           gameId: null,
-        });
+        }));
       } catch {
         setState((s) => ({
           ...s,

@@ -9,11 +9,19 @@ import {
 export type CommentaryValidationReason =
   | "phantom_cell"
   | "wrong_owner"
-  | "stale_cell";
+  | "stale_cell"
+  | "mid_game_tone";
 
 export type CommentaryValidationResult =
   | { ok: true; reason?: undefined }
   | { ok: false; reason: CommentaryValidationReason };
+
+/** Mid-game phrasing that should not appear in post-terminal commentary. */
+export function looksLikeMidGameCommentary(text: string): boolean {
+  if (/\bI placed\s+[XO]\b/i.test(text)) return true;
+  if (/\byour turn\b/i.test(text)) return true;
+  return false;
+}
 
 function escapeRegexToken(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -128,6 +136,7 @@ export function selectPersistedCommentary(
   board: Board,
   moveHistory: readonly Position[],
   result: GameResult,
+  options?: { terminalTrigger?: boolean },
 ): { text: string; usedFallback: boolean; reason?: CommentaryValidationReason } {
   const trimmed = rawText.trim();
   if (!trimmed) {
@@ -135,6 +144,17 @@ export function selectPersistedCommentary(
   }
   const v = validateCommentary(trimmed, board, moveHistory);
   if (v.ok) {
+    if (
+      options?.terminalTrigger &&
+      result.status !== "in_progress" &&
+      looksLikeMidGameCommentary(trimmed)
+    ) {
+      return {
+        text: commentaryFallbackLine(moveHistory, result),
+        usedFallback: true,
+        reason: "mid_game_tone",
+      };
+    }
     return { text: trimmed, usedFallback: false };
   }
   return {

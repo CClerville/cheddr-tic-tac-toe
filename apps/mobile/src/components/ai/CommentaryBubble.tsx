@@ -20,6 +20,8 @@ interface CommentaryBubbleProps {
   /** Fingerprint of the board (e.g. joined move indices) — bumps trigger move commentary. */
   moveFingerprint: string;
   gameOver: boolean;
+  /** Server-confirmed terminal games only (from `useRankedGame`); drives post-game commentary. */
+  terminalAckVersion: number;
   /** Active Cheddr mood (ranked games). Omit for local-only screens. */
   personality?: Personality;
 }
@@ -32,6 +34,7 @@ export function CommentaryBubble({
   sessionId,
   moveFingerprint,
   gameOver,
+  terminalAckVersion,
   personality,
 }: CommentaryBubbleProps) {
   const { palette } = useTheme();
@@ -42,13 +45,11 @@ export function CommentaryBubble({
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const prevFinger = useRef<string>("");
-  const prevOver = useRef(false);
-  const terminalFired = useRef(false);
+  const lastTerminalAckFired = useRef(0);
 
   useEffect(() => {
     prevFinger.current = "";
-    terminalFired.current = false;
-    prevOver.current = false;
+    lastTerminalAckFired.current = 0;
     setText("");
     setError(null);
     setIsStreaming(false);
@@ -59,8 +60,8 @@ export function CommentaryBubble({
     reduceMotion: reduceMotion ?? false,
   });
 
-  const runStream = useCallback(
-    async (body: CommentaryRequest) => {
+  const runStream = useCallback(async (body: CommentaryRequest) => {
+    const attempt = async (isRetry: boolean): Promise<void> => {
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
@@ -73,11 +74,25 @@ export function CommentaryBubble({
         });
         if (!res.ok) {
           let message = `${res.status} ${res.statusText}`;
+          let errorCode: string | undefined;
           try {
-            const j = (await res.json()) as { message?: string };
+            const j = (await res.json()) as {
+              message?: string;
+              error?: string;
+            };
             if (j.message) message = j.message;
+            if (typeof j.error === "string") errorCode = j.error;
           } catch {
             // ignore
+          }
+          if (
+            body.trigger === "terminal" &&
+            res.status === 425 &&
+            errorCode === "terminal_not_ready" &&
+            !isRetry
+          ) {
+            await new Promise((r) => setTimeout(r, 150));
+            return attempt(true);
           }
           throw new Error(message);
         }
@@ -106,9 +121,9 @@ export function CommentaryBubble({
       } finally {
         setIsStreaming(false);
       }
-    },
-    [],
-  );
+    };
+    await attempt(false);
+  }, []);
 
   useEffect(() => {
     if (!sessionId || !visible) return;
@@ -121,16 +136,11 @@ export function CommentaryBubble({
 
   useEffect(() => {
     if (!sessionId || !visible) return;
-    if (!gameOver) {
-      prevOver.current = false;
-      return;
-    }
-    if (prevOver.current) return;
-    prevOver.current = true;
-    if (terminalFired.current) return;
-    terminalFired.current = true;
+    if (terminalAckVersion <= 0) return;
+    if (terminalAckVersion <= lastTerminalAckFired.current) return;
+    lastTerminalAckFired.current = terminalAckVersion;
     void runStream({ sessionId, trigger: "terminal" });
-  }, [sessionId, gameOver, visible, runStream]);
+  }, [sessionId, terminalAckVersion, visible, runStream]);
 
   useEffect(() => {
     return () => abortRef.current?.abort();

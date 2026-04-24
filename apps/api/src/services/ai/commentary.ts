@@ -19,6 +19,7 @@ import { getPlayerName } from "../../lib/users.js";
 import {
   appendCommentaryLine,
   loadSessionOrSnapshotForAi,
+  waitForTerminalSession,
 } from "../../lib/session.js";
 import type { AppDeps } from "../../types.js";
 
@@ -57,9 +58,24 @@ export async function streamCommentary(
   { deps, redis, db, limiter }: CommentaryServiceDeps,
   { identityId, request, requestId }: CommentaryServiceParams,
 ): Promise<Response> {
-  const session = await loadSessionOrSnapshotForAi(redis, request.sessionId);
+  let session = await loadSessionOrSnapshotForAi(redis, request.sessionId);
   if (!session || session.userId !== identityId) {
     throw apiError("session_not_found", "Session not found or expired");
+  }
+
+  if (
+    request.trigger === "terminal" &&
+    session.result.status === "in_progress"
+  ) {
+    const refreshed = await waitForTerminalSession(
+      redis,
+      request.sessionId,
+      { attempts: 4, delayMs: 100 },
+    );
+    if (!refreshed) {
+      throw apiError("terminal_not_ready", "Terminal session not ready");
+    }
+    session = refreshed;
   }
 
   await enforceRateLimit(limiter, identityId, "Too many commentary requests");
@@ -108,6 +124,9 @@ export async function streamCommentary(
           session.board,
           session.moveHistory,
           session.result,
+          {
+            terminalTrigger: request.trigger === "terminal",
+          },
         );
       if (!toPersist) return;
       if (usedFallback) {

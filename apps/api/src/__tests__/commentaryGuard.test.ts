@@ -150,6 +150,32 @@ describe("selectPersistedCommentary", () => {
     expect(out.text).toBe("");
     expect(out.usedFallback).toBe(false);
   });
+
+  it("falls back on mid-game phrasing when terminalTrigger is set", () => {
+    const board: Board = [
+      "X",
+      "O",
+      "X",
+      "X",
+      "X",
+      "O",
+      "O",
+      "O",
+      "X",
+    ];
+    const moveHistory = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+    const result = { status: "loss" as const, loser: "X" as const };
+    const out = selectPersistedCommentary(
+      "I placed O at bottom-left to keep balance flowing.",
+      board,
+      moveHistory,
+      result,
+      { terminalTrigger: true },
+    );
+    expect(out.usedFallback).toBe(true);
+    expect(out.reason).toBe("mid_game_tone");
+    expect(out.text).toContain("three-in-a-row");
+  });
 });
 
 describe("commentaryFallbackLine", () => {

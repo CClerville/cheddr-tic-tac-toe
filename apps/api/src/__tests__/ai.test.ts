@@ -8,12 +8,20 @@ import type {
   LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 
+import { createGame, getAiMove, makeMove } from "@cheddr/game-engine";
+
 import { createApp } from "../app.js";
 import { createMemoryAiLimiters } from "../lib/ai/rateLimit.js";
+import { commentaryFallbackLine } from "../lib/ai/commentaryGuard.js";
+import {
+  deleteSession,
+  getSession,
+  saveCompletedSessionForAi,
+  updateSession,
+} from "../lib/session.js";
+import type { GameSession } from "../lib/session.js";
 import { createAiRoutes } from "../routes/ai.js";
 import { createGameRoutes } from "../routes/game.js";
-import { commentaryFallbackLine } from "../lib/ai/commentaryGuard.js";
-import { getSession, updateSession } from "../lib/session.js";
 import { createHarness } from "./harness.js";
 
 function textStreamFromParts(
@@ -420,5 +428,183 @@ describe("AI routes", () => {
       commentaryFallbackLine([5, 0], { status: "in_progress" }),
     );
     expect(last.text).not.toContain("center");
+  });
+
+  it("POST /ai/commentary terminal includes post-game loss voice when snapshot is terminal", async () => {
+    const tid = "t_terminal_loss";
+    const usage = {
+      inputTokens: {
+        total: 1,
+        noCache: 1,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: 8,
+        text: 8,
+        reasoning: undefined,
+      },
+    };
+    const finishReason = { unified: "stop" as const, raw: undefined };
+    const mock = new MockLanguageModelV3({
+      doStream: async () => {
+        const stream = textStreamFromParts([
+          { type: "stream-start", warnings: [] },
+          { type: "text-start", id: tid },
+          {
+            type: "text-delta",
+            id: tid,
+            delta: "Quiet breath—you closed the line and misère claims you.",
+          },
+          { type: "text-end", id: tid },
+          { type: "finish", usage, finishReason },
+        ]);
+        return { stream };
+      },
+    });
+
+    const { harness, app, deps } = await buildTestApp({
+      commentaryMockModel: mock,
+    });
+    const { token } = await harness.signInAnon();
+    const { sessionId } = await startSession(app, token, {
+      personality: "coach",
+    });
+    const live = await getSession(deps.redis, sessionId);
+    expect(live).not.toBeNull();
+
+    const board = ["X", "O", "X", "X", "X", "O", "O", "O", "X"] as const;
+    const moveHistory = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+    const terminal: GameSession = {
+      ...live!,
+      board: [...board],
+      moveHistory: [...moveHistory],
+      currentPlayer: "O",
+      result: { status: "loss", loser: "X" },
+    };
+    await saveCompletedSessionForAi(deps.redis, terminal);
+    await deleteSession(deps.redis, sessionId);
+
+    const res = await app.request("/ai/commentary", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId, trigger: "terminal" }),
+    });
+    expect(res.status).toBe(200);
+    expect(mock.doStreamCalls.length).toBeGreaterThan(0);
+    const promptBlob = JSON.stringify(mock.doStreamCalls[0]);
+    expect(promptBlob).toContain("Voice: warm mentor, post-game only");
+    expect(promptBlob).toContain(
+      "Outcome: you (X) just completed three-in-a-row",
+    );
+  });
+
+  it("POST /ai/commentary terminal includes post-game draw voice for a draw snapshot", async () => {
+    const tid = "t_terminal_draw";
+    const usage = {
+      inputTokens: {
+        total: 1,
+        noCache: 1,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: 8,
+        text: 8,
+        reasoning: undefined,
+      },
+    };
+    const finishReason = { unified: "stop" as const, raw: undefined };
+    const mock = new MockLanguageModelV3({
+      doStream: async () => {
+        const stream = textStreamFromParts([
+          { type: "stream-start", warnings: [] },
+          { type: "text-start", id: tid },
+          {
+            type: "text-delta",
+            id: tid,
+            delta: "Nine squares, stillness holds.",
+          },
+          { type: "text-end", id: tid },
+          { type: "finish", usage, finishReason },
+        ]);
+        return { stream };
+      },
+    });
+
+    let drawState = createGame("expert");
+    while (drawState.result.status === "in_progress") {
+      drawState = makeMove(drawState, getAiMove(drawState));
+    }
+    expect(drawState.result).toEqual({ status: "draw" });
+
+    const { harness, app, deps } = await buildTestApp({
+      commentaryMockModel: mock,
+    });
+    const { token } = await harness.signInAnon();
+    const { sessionId } = await startSession(app, token, {
+      personality: "coach",
+    });
+    const live = await getSession(deps.redis, sessionId);
+    expect(live).not.toBeNull();
+
+    const terminal: GameSession = {
+      ...live!,
+      board: drawState.board,
+      moveHistory: [...drawState.moveHistory],
+      currentPlayer: drawState.currentPlayer,
+      result: drawState.result,
+    };
+    await saveCompletedSessionForAi(deps.redis, terminal);
+    await deleteSession(deps.redis, sessionId);
+
+    const res = await app.request("/ai/commentary", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId, trigger: "terminal" }),
+    });
+    expect(res.status).toBe(200);
+    const promptBlob = JSON.stringify(mock.doStreamCalls[0]);
+    expect(promptBlob).toContain("Full board, no three-in-a-row");
+    expect(promptBlob).toContain("Outcome: the board filled with no three-in-a-row");
+  });
+
+  it("POST /ai/commentary terminal returns 425 when session stays in_progress", async () => {
+    const mock = new MockLanguageModelV3({
+      doStream: async () => {
+        throw new Error("should not stream");
+      },
+    });
+    const { harness, app, deps } = await buildTestApp({
+      commentaryMockModel: mock,
+    });
+    const { token } = await harness.signInAnon();
+    const { sessionId } = await startSession(app, token);
+
+    const live = await getSession(deps.redis, sessionId);
+    expect(live).not.toBeNull();
+    await updateSession(deps.redis, {
+      ...live!,
+      result: { status: "in_progress" },
+    });
+
+    const res = await app.request("/ai/commentary", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId, trigger: "terminal" }),
+    });
+    expect(res.status).toBe(425);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toBe("terminal_not_ready");
+    expect(mock.doStreamCalls.length).toBe(0);
   });
 });

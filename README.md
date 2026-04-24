@@ -8,7 +8,7 @@ Misère tic-tac-toe against an AI, with **ranked** (server-backed ELO), **casual
 |-------|--------|
 | Mobile | Expo 54, React Native, Expo Router, TanStack Query, Clerk, Skia (board), Reanimated, i18n (`expo-localization`), Sentry |
 | API | Hono, Drizzle ORM, Neon (HTTP driver), Upstash Redis, Zod (`@cheddr/api-types`), Vercel AI Gateway (`@ai-sdk/gateway`) |
-| AI | Streaming commentary, hints, analysis — per-user + global daily token budgets and per-route rate limits (Redis) |
+| AI | Streaming commentary (`move` / `terminal` triggers), hints, analysis — per-user + global daily token budgets and per-route rate limits (Redis); ranked post-game commentary waits on server terminal confirmation + Redis snapshot |
 | Domain | `@cheddr/game-engine` — pure rules + negamax AI + property tests (`fast-check`) |
 | CI/CD | Turborepo, GitHub Actions (migrations → deploy order), Vercel (API), EAS (mobile) |
 

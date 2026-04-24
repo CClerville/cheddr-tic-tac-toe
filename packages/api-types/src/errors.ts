@@ -33,6 +33,8 @@ export const ApiErrorCodeSchema = z.enum([
   "ai_quota_exceeded",
   "ai_unavailable",
   "ai_persist_failed",
+  /** Commentary requested before terminal snapshot is visible (client should retry). */
+  "terminal_not_ready",
 
   // Auth / identity
   "invalid_anon_token",

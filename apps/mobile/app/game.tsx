@@ -200,6 +200,7 @@ function ServerGameScreen({
         sessionId={ranked.sessionId}
         moveFingerprint={moveFingerprint}
         gameOver={ranked.isGameOver}
+        terminalAckVersion={ranked.terminalAckVersion}
         personality={personality}
       />
     </Shell>

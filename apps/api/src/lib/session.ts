@@ -232,6 +232,30 @@ export async function loadSessionOrSnapshotForAi(
   return await getCompletedSessionForAi(redis, id);
 }
 
+/**
+ * Poll until the session reflects a terminal result (live key updated or
+ * AI post-game snapshot present). Used when `trigger:"terminal"` races
+ * ahead of `/game/move` finishing its Redis writes.
+ */
+export async function waitForTerminalSession(
+  redis: Redis,
+  id: string,
+  opts: { attempts: number; delayMs: number },
+): Promise<GameSession | null> {
+  for (let i = 0; i < opts.attempts; i++) {
+    const session = await loadSessionOrSnapshotForAi(redis, id);
+    if (session && session.result.status !== "in_progress") {
+      return session;
+    }
+    if (i < opts.attempts - 1) {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, opts.delayMs);
+      });
+    }
+  }
+  return null;
+}
+
 export async function createSession(
   redis: Redis,
   session: GameSession,

@@ -30,6 +30,7 @@ export const STATUS_FOR_CODE: Readonly<Record<ApiErrorCode, number>> = {
   ai_quota_exceeded: 402,
   ai_unavailable: 503,
   ai_persist_failed: 500,
+  terminal_not_ready: 425,
 
   invalid_anon_token: 400,
   username_taken: 409,
