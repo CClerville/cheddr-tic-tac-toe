@@ -1,5 +1,5 @@
-import { createGateway } from "@ai-sdk/gateway";
 import type { GatewayModelId, GatewayProvider } from "@ai-sdk/gateway";
+import { createGateway } from "@ai-sdk/gateway";
 
 import { getEnv } from "../../env.js";
 import type { AppDeps } from "../../types.js";
