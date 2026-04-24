@@ -1,4 +1,4 @@
-## NOTE
+# NOTE
 I included the environemnt variables in the repo since this is not production code so the API Keys will eventually be disabled or roatated. 
 This was done for easy project setup for this assignment
 
