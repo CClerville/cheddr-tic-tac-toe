@@ -294,11 +294,19 @@ describe("AI routes", () => {
         content: [{ type: "text", text: hintJson }],
         finishReason: { unified: "stop", raw: undefined },
         usage: {
-          inputTokens: { total: 1, noCache: 1 },
-          outputTokens: { total: 1, text: 1 },
+          inputTokens: {
+            total: 1,
+            noCache: 1,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: {
+            total: 1,
+            text: 1,
+            reasoning: undefined,
+          },
         },
         warnings: [],
-        rawCall: { rawPrompt: null, rawSettings: {} },
       }),
     });
 
