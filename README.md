@@ -1,3 +1,9 @@
+
+
+
+https://github.com/user-attachments/assets/3acf05bc-340a-4bb2-aacb-2c39066790aa
+
+
 # Cheddr Tic-Tac-Toe
 
 Misère tic-tac-toe against an AI, with **ranked** (server-backed ELO), **casual** play, **leaderboards**, and **anonymous → Clerk** account upgrade. Includes streaming **AI commentary**, **hints**, and post-game **analysis** via the **Vercel AI Gateway**. Monorepo: **Expo** mobile app, **Hono** API, **Drizzle** + Postgres (Neon), **Upstash Redis** for sessions, **Clerk** auth.
