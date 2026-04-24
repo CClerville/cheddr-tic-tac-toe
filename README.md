@@ -39,7 +39,7 @@ packages/
 
    The script installs **Homebrew** (if needed), **Node 20+**, **pnpm**, and **cloudflared**, writes `apps/api/.env.local` and `apps/mobile/.env.local` on first run only, runs `pnpm install`, then starts the API and Metro with **Cloudflare quick tunnels** so your device does not need to be on the same LAN.
 
-3. When a QR code appears in the terminal, scan it with the **iOS Camera** (opens Expo Go) or open the printed **Expo Go deep link** on Android. Ignore the QR that Expo CLI prints later — use the one from this script (see [`scripts/dev-full-tunnel.sh`](scripts/dev-full-tunnel.sh)).
+3. When the script prints an **Expo Go deep link** (`exp+https://...`), open it on your device (e.g. paste into Safari on iOS, or tap the link from your terminal on Android). Ignore the QR that Expo CLI prints later — it is broken for HTTPS tunnels; the correct link is the one from this script (see [`scripts/dev-full-tunnel.sh`](scripts/dev-full-tunnel.sh)).
 
 Stop everything with **Ctrl-C**.
 
