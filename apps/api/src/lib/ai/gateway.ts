@@ -1,8 +1,36 @@
-import { gateway } from "@ai-sdk/gateway";
-import type { GatewayModelId } from "@ai-sdk/gateway";
+import { createGateway } from "@ai-sdk/gateway";
+import type { GatewayModelId, GatewayProvider } from "@ai-sdk/gateway";
 
 import { getEnv } from "../../env.js";
 import type { AppDeps } from "../../types.js";
+
+let gatewayProvider: GatewayProvider | null = null;
+let gatewayProviderKey: string | undefined;
+
+/**
+ * Lazily construct the Vercel AI Gateway client. When `AI_GATEWAY_API_KEY` is
+ * set in env, it is passed explicitly to `createGateway` so auth matches our
+ * validated `getEnv()` snapshot. When unset, the SDK uses OIDC (e.g. on Vercel
+ * or with `VERCEL_OIDC_TOKEN` from `vercel env pull`).
+ *
+ * Important: a stale or invalid API key in `.env.local` takes precedence over
+ * OIDC and will produce 401s until the key is fixed or removed.
+ */
+export function getGatewayProvider(): GatewayProvider {
+  const key = getEnv().AI_GATEWAY_API_KEY;
+  if (gatewayProvider && gatewayProviderKey === key) {
+    return gatewayProvider;
+  }
+  gatewayProvider = createGateway(key ? { apiKey: key } : {});
+  gatewayProviderKey = key;
+  return gatewayProvider;
+}
+
+/** Vitest helper — reset cached gateway after env mutations. */
+export function resetGatewayProviderForTests(): void {
+  gatewayProvider = null;
+  gatewayProviderKey = undefined;
+}
 
 /**
  * Default Vercel AI Gateway model used for hint/analysis routes — fast,
@@ -35,7 +63,9 @@ export function resolveLanguageModel(deps: AppDeps) {
     return deps.languageModelOverride();
   }
   const env = getEnv();
-  return gateway(asGatewayModelId(env.AI_MODEL ?? DEFAULT_MODEL_ID));
+  return getGatewayProvider()(
+    asGatewayModelId(env.AI_MODEL ?? DEFAULT_MODEL_ID),
+  );
 }
 
 /** Stronger default than `resolveLanguageModel` for spatial commentary accuracy. */
@@ -47,7 +77,7 @@ export function resolveCommentaryModel(deps: AppDeps) {
     return deps.languageModelOverride();
   }
   const env = getEnv();
-  return gateway(
+  return getGatewayProvider()(
     asGatewayModelId(env.AI_MODEL_COMMENTARY ?? DEFAULT_COMMENTARY_MODEL_ID),
   );
 }

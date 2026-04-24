@@ -35,8 +35,14 @@ const EnvSchema = z.object({
 
   SENTRY_DSN: z.string().url().optional(),
 
-  /** Vercel AI Gateway API key (local dev). On Vercel, OIDC is used when unset. */
-  AI_GATEWAY_API_KEY: z.string().optional(),
+  /**
+   * Vercel AI Gateway API key (local dev). On Vercel, OIDC is used when unset.
+   * Trimmed; empty string is treated as unset so `.env` typos do not block OIDC.
+   */
+  AI_GATEWAY_API_KEY: z
+    .string()
+    .optional()
+    .transform((s) => (s?.trim() ? s.trim() : undefined)),
   /** Gateway model id, e.g. `openai/gpt-4o-mini`. */
   AI_MODEL: z.string().optional(),
   /** Gateway model for streaming `/ai/commentary` only (stronger default for spatial accuracy). */

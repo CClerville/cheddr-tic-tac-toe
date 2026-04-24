@@ -86,7 +86,9 @@ if [[ ! -f "$API_ENV" ]]; then
   mkdir -p "$(dirname "$API_ENV")"
   cat <<'CHEHDR_API_ENV' >"$API_ENV"
 # Created by Vercel CLI
-AI_GATEWAY_API_KEY="vck_1yV0chgg1S4B65IfHhYmRRKN8URI6Z67ZPx1PaRoecA4sm0g4X3a4Zcv"
+# AI Gateway: set a valid key from Vercel → AI → API keys, or leave empty and
+# rely on VERCEL_OIDC_TOKEN below (from `vercel env pull`). A bad key blocks OIDC.
+AI_GATEWAY_API_KEY=
 # Optional Vercel AI Gateway models (see apps/api/.env.example and apps/api/.env.local.example):
 # AI_MODEL — hints + post-game analysis (API default openai/gpt-4o-mini when unset).
 # AI_MODEL_COMMENTARY — streaming in-game commentary (API default openai/gpt-4.1-mini when unset).
@@ -120,7 +122,7 @@ VERCEL_OIDC_TOKEN="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Im1yay00MzAyZWMxY
 CHEHDR_API_ENV
 else
   echo "Keeping existing $API_ENV"
-  echo "Tip: optional AI env in $API_ENV — AI_MODEL (hints/analysis), AI_MODEL_COMMENTARY (streaming commentary; defaults differ). See apps/api/.env.local.example."
+  echo "Tip: optional AI env in $API_ENV — AI_GATEWAY_API_KEY (or OIDC via VERCEL_OIDC_TOKEN), AI_MODEL, AI_MODEL_COMMENTARY. See apps/api/.env.local.example."
 fi
 
 MOBILE_ENV="$REPO_ROOT/apps/mobile/.env.local"

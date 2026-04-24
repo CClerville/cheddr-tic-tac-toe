@@ -12,13 +12,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { gateway } from "@ai-sdk/gateway";
 import type { Board, GameResult, Position } from "@cheddr/game-engine";
 import { generateText } from "ai";
 
 import {
   asGatewayModelId,
   DEFAULT_COMMENTARY_MODEL_ID,
+  getGatewayProvider,
 } from "../lib/ai/gateway.js";
 import { buildCommentaryUserPrompt } from "../lib/ai/commentaryPrompt.js";
 import { validateCommentary } from "../lib/ai/commentaryGuard.js";
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
   const modelId = asGatewayModelId(
     env.AI_MODEL_COMMENTARY ?? env.AI_MODEL ?? DEFAULT_COMMENTARY_MODEL_ID,
   );
-  const model = gateway(modelId);
+  const model = getGatewayProvider()(modelId);
   const system = buildAiSystemPrompt({
     personality: "coach",
     playerName: null,
