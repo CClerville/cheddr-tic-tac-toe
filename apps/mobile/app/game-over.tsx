@@ -120,7 +120,7 @@ export default function GameOverScreen() {
               <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark mt-4">
                 {t("gameOver.difficultyLabel", { difficulty })}
               </Text>
-              {ranked && gameId ? <AnalysisPanel gameId={gameId} /> : null}
+              {gameId ? <AnalysisPanel gameId={gameId} /> : null}
             </Animated.View>
 
             <Animated.View
