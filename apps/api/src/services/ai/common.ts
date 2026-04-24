@@ -117,12 +117,25 @@ export function safeTextStream(
   context: { route: string; requestId: string | undefined },
 ): ReadableStream<string> {
   const reader = source.getReader();
+  let closed = false;
+  // Closing a controller that has already terminated (e.g. because the
+  // consumer cancelled while a `pull` was in flight) throws synchronously.
+  // We only ever want to close once, regardless of which path got here.
+  const closeOnce = (controller: ReadableStreamDefaultController<string>) => {
+    if (closed) return;
+    closed = true;
+    try {
+      controller.close();
+    } catch {
+      /* controller already terminated by cancel(); nothing to do */
+    }
+  };
   return new ReadableStream<string>({
     async pull(controller) {
       try {
         const { value, done } = await reader.read();
         if (done) {
-          controller.close();
+          closeOnce(controller);
           return;
         }
         controller.enqueue(value);
@@ -132,10 +145,11 @@ export function safeTextStream(
           requestId: context.requestId,
           err,
         });
-        controller.close();
+        closeOnce(controller);
       }
     },
     cancel(reason) {
+      closed = true;
       reader.cancel(reason).catch(() => {});
     },
   });
