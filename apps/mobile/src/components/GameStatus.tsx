@@ -1,3 +1,4 @@
+import type { GameResult } from "@cheddr/game-engine";
 import { useEffect } from "react";
 import { Text, View } from "react-native";
 import Animated, {
@@ -11,7 +12,6 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import type { GameResult } from "@cheddr/game-engine";
 
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -30,12 +30,13 @@ export function GameStatus({
   aiThinking,
 }: GameStatusProps) {
   const reduceMotion = useReducedMotion();
-  const enter = reduceMotion ? undefined : FadeInDown.springify().damping(16);
+  const enterProps = reduceMotion
+    ? {}
+    : { entering: FadeInDown.springify().damping(16) };
   const { palette } = useTheme();
 
   const activeMark: "X" | "O" = aiThinking ? "O" : currentPlayer;
-  const activeColor =
-    activeMark === "X" ? palette.playerX : palette.playerO;
+  const activeColor = activeMark === "X" ? palette.playerX : palette.playerO;
 
   const turnLabel = aiThinking
     ? "AI thinking"
@@ -44,7 +45,7 @@ export function GameStatus({
       : "Opponent's Move";
 
   const turnRow = (
-    <View className="flex-row items-center justify-center gap-3 px-3 py-2">
+    <View className="flex-row items-center justify-center gap-1 px-3 py-2">
       <MarkBadge mark={activeMark} color={activeColor} pulsing />
       <View
         className="flex-row items-center justify-center"
@@ -69,7 +70,7 @@ export function GameStatus({
         : "AI completed 3-in-a-row. You win!";
     body = (
       <Animated.View
-        entering={enter}
+        {...enterProps}
         accessibilityLiveRegion="assertive"
         className="items-center px-3 py-3"
       >
@@ -84,7 +85,7 @@ export function GameStatus({
   } else if (result.status === "draw") {
     body = (
       <Animated.View
-        entering={enter}
+        {...enterProps}
         accessibilityLiveRegion="assertive"
         className="items-center px-3 py-3"
       >

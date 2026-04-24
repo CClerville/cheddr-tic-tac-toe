@@ -1,8 +1,12 @@
 import type { ErrorHandler, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 
+import { renderInternalError } from "../lib/errors.js";
+import { logger } from "../lib/logger.js";
 import { Sentry } from "../lib/sentry.js";
 import type { AppBindings } from "../types.js";
+
+const log = logger.child({ scope: "http" });
 
 /**
  * Per-request scope: tag the Sentry scope with the request ID and the
@@ -16,7 +20,10 @@ export function sentryScope(): MiddlewareHandler<AppBindings> {
       await next();
       const identity = c.get("identity");
       if (identity) {
-        scope.setUser({ id: identity.id, username: identity.username ?? undefined });
+        scope.setUser({
+          id: identity.id,
+          ...(identity.username != null && { username: identity.username }),
+        });
       }
     });
   };
@@ -28,9 +35,9 @@ export function sentryScope(): MiddlewareHandler<AppBindings> {
  * client-driven and would drown the signal in noise.
  */
 export const sentryErrorHandler: ErrorHandler<AppBindings> = (err, c) => {
-  const status =
+  const errStatus =
     err instanceof HTTPException ? err.status : ((err as { status?: number }).status ?? 500);
-  if (status >= 500 || !(err instanceof HTTPException)) {
+  if (errStatus >= 500 || !(err instanceof HTTPException)) {
     Sentry.captureException(err, {
       tags: { request_id: c.get("requestId") ?? "unknown" },
     });
@@ -38,17 +45,17 @@ export const sentryErrorHandler: ErrorHandler<AppBindings> = (err, c) => {
     // are debuggable without round-tripping through Sentry. Production
     // still relies on Sentry to avoid noisy stdout in serverless logs.
     if (process.env.NODE_ENV !== "production") {
-      console.error(
-        `[error] ${c.req.method} ${c.req.path} request_id=${c.get("requestId") ?? "unknown"}`,
+      log.error("unhandled_error", {
+        method: c.req.method,
+        path: c.req.path,
+        requestId: c.get("requestId") ?? "unknown",
         err,
-      );
+      });
     }
   }
   if (err instanceof HTTPException) {
     return err.getResponse();
   }
-  return c.json(
-    { error: "internal_error", message: "An unexpected error occurred" },
-    500,
-  );
+  const rendered = renderInternalError({ requestId: c.get("requestId") });
+  return c.json(rendered.body, rendered.status as Parameters<typeof c.json>[1]);
 };

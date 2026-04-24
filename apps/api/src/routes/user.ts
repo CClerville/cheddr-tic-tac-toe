@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@cheddr/api-types";
 import { schema, type UserRow } from "@cheddr/db";
 
+import { apiError } from "../lib/errors.js";
 import { auth } from "../middleware/auth.js";
 import { isUniqueViolation, toProfile } from "../services/userProfile.js";
 import {
@@ -43,7 +43,7 @@ export function createUserRoutes(deps: AppDeps) {
         .where(eq(schema.users.id, identity.id))
         .limit(1);
       if (!row) {
-        throw new HTTPException(404, { message: "User not found" });
+        throw apiError("user_not_found", "User not found");
       }
       return c.json(toProfile(row));
     })
@@ -61,9 +61,7 @@ export function createUserRoutes(deps: AppDeps) {
         const identity = c.get("identity");
 
         if (identity.kind !== "clerk") {
-          throw new HTTPException(403, {
-            message: "Sign in to edit your profile",
-          });
+          throw apiError("username_change_locked", "Sign in to edit your profile");
         }
 
         const update = c.req.valid("json");
@@ -89,15 +87,13 @@ export function createUserRoutes(deps: AppDeps) {
           updated = rows[0];
         } catch (err) {
           if (isUniqueViolation(err)) {
-            throw new HTTPException(409, {
-              message: "That username is already taken",
-            });
+            throw apiError("username_taken", "That username is already taken");
           }
           throw err;
         }
 
         if (!updated) {
-          throw new HTTPException(404, { message: "User not found" });
+          throw apiError("user_not_found", "User not found");
         }
 
         const body: ProfileUpdateResponse = { profile: toProfile(updated) };
@@ -111,7 +107,7 @@ export function createUserRoutes(deps: AppDeps) {
 
       const parsed = parseGamesCursor(cursor);
       if (parsed.kind === "invalid") {
-        throw new HTTPException(400, { message: "Invalid games cursor" });
+        throw apiError("invalid_cursor", "Invalid games cursor");
       }
 
       const uid = eq(schema.games.userId, identity.id);
@@ -146,7 +142,7 @@ export function createUserRoutes(deps: AppDeps) {
           )
           .limit(1);
         if (!pivot) {
-          throw new HTTPException(400, { message: "Invalid games cursor" });
+          throw apiError("invalid_cursor", "Invalid games cursor");
         }
         where = and(
           uid,
@@ -191,9 +187,10 @@ export function createUserRoutes(deps: AppDeps) {
     .post("/sync-anon", zValidator("json", SyncAnonRequestSchema), async (c) => {
       const identity = c.get("identity");
       if (identity.kind !== "clerk") {
-        throw new HTTPException(403, {
-          message: "Only Clerk-authenticated users can claim an anon history",
-        });
+        throw apiError(
+          "forbidden",
+          "Only Clerk-authenticated users can claim an anon history",
+        );
       }
 
       const { anonToken } = c.req.valid("json");

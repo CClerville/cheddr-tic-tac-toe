@@ -13,6 +13,7 @@ import { mintAnonToken, newAnonUserId } from "../lib/anonToken.js";
 import {
   createUpstashAnonMintLimiter,
 } from "../lib/ai/rateLimit.js";
+import { apiError } from "../lib/errors.js";
 import { auth, ensureUser } from "../middleware/auth.js";
 import type { AppBindings, AppDeps } from "../types.js";
 
@@ -36,17 +37,8 @@ function mintRateLimitedResponse(
   message: string,
   retryAfterSeconds: number,
 ): HTTPException {
-  return new HTTPException(429, {
-    res: new Response(
-      JSON.stringify({ error: "rate_limited", message }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": String(Math.max(1, retryAfterSeconds)),
-        },
-      },
-    ),
+  return apiError("rate_limited", message, {
+    headers: { "Retry-After": String(Math.max(1, retryAfterSeconds)) },
   });
 }
 
@@ -101,9 +93,10 @@ export function createAuthRoutes(deps: AppDeps) {
             await db.delete(schema.users).where(eq(schema.users.id, candidate));
             const winner = await redis.get<string>(bindKey);
             if (!winner) {
-              throw new HTTPException(503, {
-                message: "Failed to bind device identity; retry",
-              });
+              throw apiError(
+                "service_unavailable",
+                "Failed to bind device identity; retry",
+              );
             }
             userId = winner;
             await ensureUser(db, userId, "anon");

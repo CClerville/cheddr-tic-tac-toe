@@ -9,6 +9,7 @@ import Constants from "expo-constants";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SplashGate } from "@/components/SplashGate";
+import "@/i18n"; // initialize i18next before any translated render
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
 import { queryClient } from "@/lib/queryClient";
 import { clerkTokenCache } from "@/lib/secureStore";

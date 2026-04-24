@@ -33,11 +33,9 @@
       ]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "outputs": ["coverage/**"]
     },
-    "lint": {
-      "dependsOn": ["^build"]
-    },
+    "lint": {},
     "typecheck": {
       "dependsOn": ["^build"]
     },

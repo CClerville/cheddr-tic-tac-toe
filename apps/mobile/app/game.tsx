@@ -7,6 +7,7 @@ import { CommentaryBubble } from "@/components/ai/CommentaryBubble";
 import { HintButton } from "@/components/ai/HintButton";
 import { Board } from "@/components/Board";
 import { GameStatus } from "@/components/GameStatus";
+import { ApiErrorBanner } from "@/components/ui/ApiErrorBanner";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { BackButton, ScreenHeader } from "@/components/ui/ScreenHeader";
@@ -149,7 +150,14 @@ function ServerGameScreen({
       overlay
     >
       {ranked.error ? (
-        <Text className="text-red-500 text-center">{ranked.error}</Text>
+        <View className="w-full max-w-sm">
+          <ApiErrorBanner
+            error={ranked.error}
+            onRetry={() => {
+              void ranked.resetGame();
+            }}
+          />
+        </View>
       ) : null}
       <GameStatus
         result={ranked.gameState.result}

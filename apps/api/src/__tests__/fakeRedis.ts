@@ -45,6 +45,19 @@ export interface FakeRedis {
   lrange(key: string, start: number, stop: number): Promise<string[]>;
   ltrim(key: string, start: number, stop: number): Promise<"OK">;
 
+  /**
+   * Minimal `EVAL` shim. Only recognizes scripts the API actually ships;
+   * we interpret them directly in JS rather than embed a Lua VM. Real
+   * Redis runs Lua scripts atomically — JavaScript is single-threaded
+   * within a microtask boundary, so this fake is atomicity-equivalent
+   * for unit tests.
+   */
+  eval<T = unknown>(
+    script: string,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T>;
+
   /** Test-only helpers. */
   __dump(): Record<string, unknown>;
   __reset(): void;
@@ -231,6 +244,42 @@ export function createFakeRedis(): FakeRedis {
         entry.items = entry.items.slice(s, e + 1);
       }
       return "OK";
+    },
+
+    async eval<T>(script: string, keys: string[], args: (string | number)[]) {
+      // Recognize scripts by a stable substring — keeps this fake small.
+      if (script.includes("RESERVE_AI_TOKENS") || script.includes("ARGV[4]")) {
+        const [userKey, globalKey] = keys;
+        const reserve = Number(args[0]);
+        const userBudget = Number(args[1]);
+        const globalBudget = Number(args[2]);
+        const ttlSeconds = Number(args[3]);
+        if (
+          !userKey ||
+          !globalKey ||
+          !Number.isFinite(reserve) ||
+          !Number.isFinite(userBudget) ||
+          !Number.isFinite(globalBudget) ||
+          !Number.isFinite(ttlSeconds)
+        ) {
+          throw new Error("fakeRedis: bad args for reserve script");
+        }
+        const userCur = Number(readKv(userKey) ?? 0);
+        const globalCur = Number(readKv(globalKey) ?? 0);
+        if (userCur + reserve > userBudget) {
+          return [0, "user", userCur, globalCur] as unknown as T;
+        }
+        if (globalCur + reserve > globalBudget) {
+          return [0, "global", userCur, globalCur] as unknown as T;
+        }
+        const userAfter = userCur + reserve;
+        const globalAfter = globalCur + reserve;
+        const expires = Date.now() + ttlSeconds * 1000;
+        kv.set(userKey, { value: userAfter, expiresAt: expires });
+        kv.set(globalKey, { value: globalAfter, expiresAt: expires });
+        return [1, "ok", userAfter, globalAfter] as unknown as T;
+      }
+      throw new Error("fakeRedis: unsupported eval script");
     },
 
     __dump() {

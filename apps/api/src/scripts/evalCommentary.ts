@@ -13,10 +13,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { gateway } from "@ai-sdk/gateway";
-import type { GatewayModelId } from "@ai-sdk/gateway";
 import type { Board, GameResult, Position } from "@cheddr/game-engine";
 import { generateText } from "ai";
 
+import {
+  asGatewayModelId,
+  DEFAULT_COMMENTARY_MODEL_ID,
+} from "../lib/ai/gateway.js";
 import { buildCommentaryUserPrompt } from "../lib/ai/commentaryPrompt.js";
 import { validateCommentary } from "../lib/ai/commentaryGuard.js";
 import { buildAiSystemPrompt } from "../lib/ai/personalities.js";
@@ -56,9 +59,9 @@ async function main(): Promise<void> {
 
   const raw = JSON.parse(await readFile(fixturePath(), "utf8")) as FixtureRow[];
   const env = getEnv();
-  const modelId = (env.AI_MODEL_COMMENTARY ??
-    env.AI_MODEL ??
-    "openai/gpt-4.1-mini") as GatewayModelId;
+  const modelId = asGatewayModelId(
+    env.AI_MODEL_COMMENTARY ?? env.AI_MODEL ?? DEFAULT_COMMENTARY_MODEL_ID,
+  );
   const model = gateway(modelId);
   const system = buildAiSystemPrompt({
     personality: "coach",

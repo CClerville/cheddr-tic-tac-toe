@@ -60,6 +60,7 @@ export async function rebuild(
       score: r.elo,
       member: r.id,
     }));
+    if (!head) continue;
     await redis.zadd(LEADERBOARD_KEY, head, ...tail);
   }
   return rows.length;

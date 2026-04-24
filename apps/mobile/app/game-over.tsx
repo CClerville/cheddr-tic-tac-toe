@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -58,25 +59,10 @@ function parsePersonality(value: unknown): Personality {
   return r.success ? r.data : "coach";
 }
 
-const COPY: Record<
-  GameOutcome,
-  { title: string; subtitle: string; emoji: string }
-> = {
-  win: {
-    title: "You win!",
-    subtitle: "Cheddar completed three-in-a-row.",
-    emoji: "★",
-  },
-  loss: {
-    title: "You lose",
-    subtitle: "You completed three-in-a-row.",
-    emoji: "✕",
-  },
-  draw: {
-    title: "Draw",
-    subtitle: "Nobody fell into a three-in-a-row trap.",
-    emoji: "=",
-  },
+const OUTCOME_EMOJI: Record<GameOutcome, string> = {
+  win: "★",
+  loss: "✕",
+  draw: "=",
 };
 
 export default function GameOverScreen() {
@@ -86,9 +72,14 @@ export default function GameOverScreen() {
   const ranked = params.ranked === "1";
   const gameId = parseGameId(params.gameId);
   const personality = parsePersonality(params.personality);
-  const copy = COPY[outcome];
   const reduceMotion = useReducedMotion();
   const { palette } = useTheme();
+  const { t } = useTranslation();
+  const copy = {
+    title: t(`gameOver.${outcome}.title`),
+    subtitle: t(`gameOver.${outcome}.subtitle`),
+    emoji: OUTCOME_EMOJI[outcome],
+  };
 
   const emojiColor =
     outcome === "win"
@@ -114,7 +105,7 @@ export default function GameOverScreen() {
         <GlassPanel variant="modal" style={{ width: "100%", maxWidth: 400 }}>
           <View className="px-5 py-8">
             <Animated.View
-              entering={reduceMotion ? undefined : FadeIn.duration(motion.fast)}
+              {...(reduceMotion ? {} : { entering: FadeIn.duration(motion.fast) })}
               className="items-center"
             >
               <Text className="text-6xl mb-4" style={{ color: emojiColor }}>
@@ -127,17 +118,17 @@ export default function GameOverScreen() {
                 {copy.subtitle}
               </Text>
               <Text className="text-xs uppercase tracking-widest text-muted dark:text-muted-dark mt-4">
-                {difficulty} difficulty
+                {t("gameOver.difficultyLabel", { difficulty })}
               </Text>
               {ranked && gameId ? <AnalysisPanel gameId={gameId} /> : null}
             </Animated.View>
 
             <Animated.View
-              entering={
-                reduceMotion
-                  ? undefined
-                  : FadeInDown.delay(120).springify().damping(16)
-              }
+              {...(reduceMotion
+                ? {}
+                : {
+                    entering: FadeInDown.delay(120).springify().damping(16),
+                  })}
               className="w-full gap-3 mt-10"
             >
               <PressableScale
@@ -153,34 +144,34 @@ export default function GameOverScreen() {
                   queueMicrotask(() => haptics.selectionChange());
                 }}
                 accessibilityRole="button"
-                accessibilityLabel="Rematch"
-                accessibilityHint="Starts a new game at the same difficulty"
+                accessibilityLabel={t("gameOver.rematch")}
+                accessibilityHint={t("gameOver.rematchHint")}
                 className="bg-accent dark:bg-accent-dark py-4 rounded-full items-center"
               >
                 <Text className="text-accent-contrast dark:text-accent-contrast-dark font-semibold text-lg">
-                  Rematch
+                  {t("gameOver.rematch")}
                 </Text>
               </PressableScale>
 
               <PressableScale
                 onPress={() => router.replace("/setup")}
                 accessibilityRole="button"
-                accessibilityLabel="Change difficulty"
+                accessibilityLabel={t("gameOver.changeDifficulty")}
                 className="bg-glass dark:bg-glass-dark border border-glassBorder dark:border-glassBorder-dark py-3 rounded-full items-center"
               >
                 <Text className="text-primary dark:text-primary-dark font-medium text-base">
-                  Change Difficulty
+                  {t("gameOver.changeDifficulty")}
                 </Text>
               </PressableScale>
 
               <PressableScale
                 onPress={() => router.replace("/")}
                 accessibilityRole="button"
-                accessibilityLabel="Home"
+                accessibilityLabel={t("common.home")}
                 className="py-3 rounded-full items-center"
               >
                 <Text className="text-secondary dark:text-secondary-dark text-base">
-                  Home
+                  {t("common.home")}
                 </Text>
               </PressableScale>
             </Animated.View>

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createGame,
+  derivePhase,
   getAiMove,
   makeMove,
   type Difficulty,
+  type GamePhase,
   type GameState,
   type Position,
 } from "@cheddr/game-engine";
@@ -16,11 +18,7 @@ import {
   type GameRepository,
 } from "@/storage/gameRepository";
 
-export type GamePhase =
-  | "hydrating"
-  | "player_turn"
-  | "ai_thinking"
-  | "game_over";
+export type { GamePhase } from "@cheddr/game-engine";
 
 export interface UseGameOptions {
   initialDifficulty?: Difficulty;
@@ -33,11 +31,6 @@ export interface UseGameOptions {
 }
 
 const DEFAULT_AI_THINK_MS = 600;
-
-function derivePhase(state: GameState): GamePhase {
-  if (state.result.status !== "in_progress") return "game_over";
-  return state.currentPlayer === "X" ? "player_turn" : "ai_thinking";
-}
 
 export function useGame(options: UseGameOptions | Difficulty = {}) {
   const opts: UseGameOptions =
