@@ -86,4 +86,4 @@ Environment variable reference and CI secrets: **[`docs/ci.md`](docs/ci.md)**.
 
 ## License
 
-Private / take-home assignment — not for App Store submission unless you choose to ship it.
+Private / take-home assignment — Not for App Store submission!
