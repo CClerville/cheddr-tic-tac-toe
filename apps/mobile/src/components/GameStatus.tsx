@@ -282,6 +282,7 @@ function withAlpha(color: string, alpha: number): string {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
   const rgbMatch = hex.match(
+    // eslint-disable-next-line security/detect-unsafe-regex
     /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*[\d.]+\s*)?\)$/,
   );
   if (rgbMatch) {

@@ -91,7 +91,7 @@ export function CommentaryBubble({
             errorCode === "terminal_not_ready" &&
             !isRetry
           ) {
-            await new Promise((r) => setTimeout(r, 150));
+            await new Promise((resolve) => setTimeout(resolve, 150));
             return attempt(true);
           }
           throw new Error(message);

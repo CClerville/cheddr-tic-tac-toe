@@ -43,7 +43,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(STORAGE_KEY)
+    void AsyncStorage.getItem(STORAGE_KEY)
       .then((stored) => {
         if (cancelled) return;
         const next = isThemePreference(stored) ? stored : "system";

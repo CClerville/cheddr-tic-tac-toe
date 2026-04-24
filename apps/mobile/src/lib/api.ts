@@ -66,7 +66,7 @@ async function mintAnonInline(force = false): Promise<string | null> {
   })();
   if (!force) {
     inflightMint = p;
-    p.finally(() => {
+    void p.finally(() => {
       if (inflightMint === p) inflightMint = null;
     });
   }
