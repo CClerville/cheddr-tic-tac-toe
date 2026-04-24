@@ -8,6 +8,11 @@ https://github.com/user-attachments/assets/3acf05bc-340a-4bb2-aacb-2c39066790aa
 
 Misère tic-tac-toe against an AI, with **ranked** (server-backed ELO), **casual** play, **leaderboards**, and **anonymous → Clerk** account upgrade. Includes streaming **AI commentary**, **hints**, and post-game **analysis** via the **Vercel AI Gateway**. Monorepo: **Expo** mobile app, **Hono** API, **Drizzle** + Postgres (Neon), **Upstash Redis** for sessions, **Clerk** auth.
 
+
+## NOTE
+I included the environemnt variables in the repo since this is not production code so the API Keys will eventually be disabled or roatated. 
+This was done for easy project setup for this assignment
+
 ## Tech stack
 
 | Layer | Stack |
