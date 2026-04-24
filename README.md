@@ -1,13 +1,14 @@
 # Cheddr Tic-Tac-Toe
 
-Misère tic-tac-toe against an AI, with **ranked** (server-backed ELO), **casual** play, **leaderboards**, and **anonymous → Clerk** account upgrade. Monorepo: **Expo** mobile app, **Hono** API, **Drizzle** + Postgres (Neon), **Upstash Redis** for sessions, **Clerk** auth.
+Misère tic-tac-toe against an AI, with **ranked** (server-backed ELO), **casual** play, **leaderboards**, and **anonymous → Clerk** account upgrade. Includes streaming **AI commentary**, **hints**, and post-game **analysis** via the **Vercel AI Gateway**. Monorepo: **Expo** mobile app, **Hono** API, **Drizzle** + Postgres (Neon), **Upstash Redis** for sessions, **Clerk** auth.
 
 ## Tech stack
 
 | Layer | Stack |
 |-------|--------|
-| Mobile | Expo 54, React Native, Expo Router, TanStack Query, Clerk, Skia (board), Reanimated |
-| API | Hono, Drizzle ORM, Neon (HTTP driver), Upstash Redis, Zod (`@cheddr/api-types`) |
+| Mobile | Expo 54, React Native, Expo Router, TanStack Query, Clerk, Skia (board), Reanimated, i18n (`expo-localization`), Sentry |
+| API | Hono, Drizzle ORM, Neon (HTTP driver), Upstash Redis, Zod (`@cheddr/api-types`), Vercel AI Gateway (`@ai-sdk/gateway`) |
+| AI | Streaming commentary, hints, analysis — per-user + global daily token budgets and per-route rate limits (Redis) |
 | Domain | `@cheddr/game-engine` — pure rules + negamax AI + property tests (`fast-check`) |
 | CI/CD | Turborepo, GitHub Actions (migrations → deploy order), Vercel (API), EAS (mobile) |
 
@@ -66,8 +67,8 @@ Environment variable reference and CI secrets: **[`docs/ci.md`](docs/ci.md)**.
 
 ## Documentation
 
-- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — system diagram, move lifecycle, auth, persistence tradeoffs
-- **[`docs/ci.md`](docs/ci.md)** — GitHub Actions, Neon, Vercel, EAS
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — system diagram, move lifecycle, auth, AI, persistence tradeoffs
+- **[`docs/ci.md`](docs/ci.md)** — GitHub Actions, Neon, Vercel, EAS, AI env and `eval:commentary`
 - **[`docs/mobile-preview-builds.md`](docs/mobile-preview-builds.md)** — internal preview installs
 - **[`AGENTS.md`](AGENTS.md)** — Cursor / agent conventions
 

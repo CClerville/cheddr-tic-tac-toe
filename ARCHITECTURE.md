@@ -25,12 +25,14 @@ flowchart LR
   subgraph external [External]
     Clerk[Clerk]
     Sentry[Sentry]
+    AiGateway[Vercel_AI_Gateway]
   end
   Hooks -->|HTTPS_JSON| Routes
   Lib --> Neon
   Lib --> Redis
   MW --> Clerk
   Routes --> Sentry
+  Routes -->|streamText| AiGateway
 ```
 
 ## Ranked move lifecycle (`POST /game/move`)
@@ -68,6 +70,17 @@ sequenceDiagram
 1. Mobile mints anon JWT via `POST /auth/anon` (rate-limited, device binding in Redis).
 2. After Clerk sign-in, mobile calls merge/sync endpoints with Clerk session + prior anon id (see [`apps/api/src/lib/syncAnon.ts`](apps/api/src/lib/syncAnon.ts) and user routes).
 3. Server reassigns rows and invalidates anon session as documented in code paths.
+
+## AI features
+
+Mounted at `/ai` ([`apps/api/src/routes/ai.ts`](apps/api/src/routes/ai.ts)): **`POST /ai/commentary`** (SSE stream), **`POST /ai/hint`**, **`POST /ai/analysis`**. Each route is a thin shim over [`apps/api/src/services/ai/`](apps/api/src/services/ai/) so HTTP stays separate from orchestration.
+
+- **Gateway**: Models come from **Vercel AI Gateway** ([`apps/api/src/lib/ai/gateway.ts`](apps/api/src/lib/ai/gateway.ts)) — defaults `openai/gpt-4o-mini` for hint/analysis and `openai/gpt-4.1-mini` for commentary (`AI_MODEL` / `AI_MODEL_COMMENTARY`).
+- **Budgets**: Per-user and global daily token caps (`AI_DAILY_TOKEN_BUDGET`, `AI_GLOBAL_DAILY_TOKEN_BUDGET`) use reservation + settle in Redis via Lua ([`apps/api/src/lib/ai/usage.ts`](apps/api/src/lib/ai/usage.ts), [`apps/api/src/lib/ai/luaScripts.ts`](apps/api/src/lib/ai/luaScripts.ts)).
+- **Rate limits**: Per-route sliding windows in [`apps/api/src/lib/ai/rateLimit.ts`](apps/api/src/lib/ai/rateLimit.ts).
+- **Commentary safety**: [`apps/api/src/lib/ai/commentaryGuard.ts`](apps/api/src/lib/ai/commentaryGuard.ts) validates model output against the board before lines are persisted on the session.
+
+Mobile consumes these via TanStack Query hooks and UI under [`apps/mobile/src/components/ai/`](apps/mobile/src/components/ai/). Before changing commentary prompts or `AI_MODEL_COMMENTARY`, run **`pnpm --filter @cheddr/api eval:commentary`** (exits non-zero if pass rate falls below 90%); env and fixtures: [`docs/ci.md`](docs/ci.md).
 
 ## Why the game engine is pure
 
