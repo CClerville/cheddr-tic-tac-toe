@@ -49,11 +49,16 @@ function envLevel(): LogLevel {
  */
 function serializeValue(value: unknown): unknown {
   if (value instanceof Error) {
+    // `Error.cause` is ES2022. Access via a structural cast so this file
+    // type-checks even when consumers compile with an older `lib` (eg.
+    // Vercel's default function compiler before we land an explicit lib
+    // override here).
+    const cause = (value as { cause?: unknown }).cause;
     return {
       name: value.name,
       message: value.message,
       stack: value.stack,
-      ...(value.cause != null ? { cause: serializeValue(value.cause) } : {}),
+      ...(cause != null ? { cause: serializeValue(cause) } : {}),
     };
   }
   return value;
